@@ -20,6 +20,21 @@ todos:
   - id: genai-usage-md
     content: Update docs/genai-usage.md to log AI tool usage for Phase 1
     status: pending
+  - id: observability-instrumentation
+    content: Add structured [PIPELINE] logs, reason codes, partition/offset DLQ metadata, and end-of-run offset summaries in Tekton task scripts
+    status: pending
+  - id: pipelinerun-generatename
+    content: Update tekton/pipelinerun.yaml to use metadata.generateName and document oc create workflow for each run
+    status: pending
+  - id: testing-layout-and-unit
+    content: Extract src/validate.py and src/route.py pure logic and add parametrized unit tests under tests/
+    status: pending
+  - id: testing-ops-commands
+    content: Add pytest markers, Makefile test targets, and oc apply --dry-run=client YAML sanity check to docs
+    status: pending
+  - id: integration-test-backlog
+    content: Define deferred integration test plan using local Kafka/Redpanda for post-Phase-1 execution
+    status: pending
 isProject: false
 ---
 
@@ -42,6 +57,28 @@ The repo is a scaffold with empty `tekton/`, `k8s/`, and `spark/` directories (o
 Ensure these topics exist in the cluster (same convention as other `team02` topics) before relying on them in production runs.
 
 **Bootstrap server:** `my-cluster-kafka-bootstrap.ds551-2026-spring-9ab13b.svc.cluster.local:9092`
+
+## Namespace Resource Quotas (Current Snapshot)
+
+Plan deployment and run concurrency around current namespace limits:
+
+| Resource | Used | Max | Practical headroom for this project |
+|----------|------|-----|-------------------------------------|
+| CPU (`limits.cpu`) | 2 | 4 | ~2 CPU available |
+| Memory (`limits.memory`) | 4Gi | 8Gi | ~4Gi available |
+| Ephemeral storage (`limits.ephemeral-storage`) | 0 | 5Gi | ~5Gi available |
+| PVC storage requests (`requests.storage`) | 10Gi | 20Gi | ~10Gi available |
+| PersistentVolumeClaims count | 2 | 2 | **0 available** (must free at least 1 PVC before adding new claims) |
+| GPU (`requests.nvidia.com/gpu`) | 0 | 0 | No GPU capacity in this namespace |
+
+### Pre-Deploy Resource Reclamation
+
+Before applying Phase 1 manifests, free resources currently used by non-essential workloads for this project:
+
+1. Identify pods/deployments/jobs from previous experiments and scale down or delete them.
+2. Remove unused PVCs and stale volume claims to open at least one PVC slot (quota is currently full).
+3. Verify quota headroom with `oc describe resourcequota` and ensure CPU/memory headroom remains before starting a `PipelineRun`.
+4. Run Tekton workloads sequentially at first (single `PipelineRun`), then increase parallelism only after confirming stable quota usage.
 
 ---
 
@@ -75,6 +112,21 @@ flowchart LR
 
 ---
 
+## Observability (new)
+
+- **Structured logging format:** Every decision log line must use a `[PIPELINE]` prefix and a `json.dumps(...)` payload with keys: `task`, `phase` (`validate` or `route`), `event_id`, `outcome` (`valid`, `dlq`, or `error`), `reason_code`, and `target_topic` (when applicable).
+- **Reason-code mapping:** Normalize error causes to the following codes:
+  - `JSON_PARSE`
+  - `MISSING_FIELD:<field_name>` (e.g., `MISSING_FIELD:patient_id`)
+  - `BAD_EVENT_TYPE`
+  - `BAD_TIMESTAMP`
+  - `PRODUCE_FAILED`
+  - `UNKNOWN_EVENT_TYPE_AFTER_VALIDATE`
+- **End-of-run summary and offsets:** In each task, log final counters (`total_consumed`, `valid_count`, `dlq_count`, `error_count`) and, before closing the consumer, call `consumer.assignment()` and `consumer.position(tp)` for each assigned partition to log final offsets. This distinguishes "topic empty" from "group already at end."
+- **DLQ envelope enrichment:** Add `original_partition` and `original_offset` (from the `ConsumerRecord`) to all DLQ records in both validation and routing tasks.
+
+---
+
 ## File 1: `tekton/tasks.yaml`
 
 Two Tekton Tasks in a single multi-document YAML file (separated by `---`).
@@ -92,8 +144,9 @@ Two Tekton Tasks in a single multi-document YAML file (separated by `---`).
     - **Validate `event_type`:** must be one of `symptom_report`, `clinic_visit`, `environmental_conditions`.
     - **Validate `timestamp`:** must be parseable as ISO 8601 (use `datetime.fromisoformat`).
     - If valid: produce to `output-topic` with **message key** = string `event_id` when publishing.
-    - If invalid or JSON parse fails: **log** the reason, then **produce** a DLQ record to `validate-dlq-topic` (envelope with failure metadata and raw payload); use key = `event_id` if it was extractable from partial parse, else a stable placeholder per message (e.g. hash of raw bytes) so ordering is still defined.
-  4. Flush producer, close consumer, print summary counts (valid / dlq / errors).
+    - If invalid or JSON parse fails: **log** the reason using `[PIPELINE]` structured logs and reason codes, then **produce** a DLQ record to `validate-dlq-topic` (envelope with failure metadata and raw payload); use key = `event_id` if it was extractable from partial parse, else a stable placeholder per message (e.g. hash of raw bytes) so ordering is still defined.
+    - Include `original_partition` and `original_offset` in every DLQ envelope.
+  4. Flush producer, then emit end-of-run counters (`total_consumed`, `valid_count`, `dlq_count`, `error_count`) and final offsets from `consumer.assignment()`/`consumer.position(tp)`, close consumer, and print summary counts.
 
 ### Task 2: `route-and-enrich`
 
@@ -109,15 +162,17 @@ Two Tekton Tasks in a single multi-document YAML file (separated by `---`).
       - `processing_timestamp`: current UTC time in ISO 8601 (`datetime.utcnow().isoformat() + "Z"`)
       - `event_source`: `"ds551-event-generator"`
     - Map `event_type` to a target topic: `symptom_report` → `symptom-topic`, `clinic_visit` → `clinic-topic`, `environmental_conditions` → `environmental-topic`.
-    - **If `event_type` is unknown:** produce to `routing-dlq-topic` with an envelope (`unknown_event_type`, payload, `event_id` if present); **continue** to the next message.
-    - **If known type:** try to produce the enriched record to the target topic with **key** = string `event_id`. **If produce raises:** log, produce a failure envelope to `routing-dlq-topic`, then **continue** the batch (document this choice in README so operators know offsets still advance).
-  4. Flush producer, close consumer, print summary counts.
+    - **If `event_type` is unknown:** produce to `routing-dlq-topic` with an envelope (`unknown_event_type`, payload, `event_id` if present) including `original_partition` and `original_offset`; **continue** to the next message.
+    - **If known type:** try to produce the enriched record to the target topic with **key** = string `event_id`. **If produce raises:** log with `[PIPELINE]` structured output (`PRODUCE_FAILED`), produce a failure envelope to `routing-dlq-topic` including partition/offset metadata, then **continue** the batch (document this choice in README so operators know offsets still advance).
+  4. Flush producer, then emit end-of-run counters (`total_consumed`, `valid_count`, `dlq_count`, `error_count`) and final offsets from `consumer.assignment()`/`consumer.position(tp)`, close consumer, and print summary counts.
 
 **Key implementation details:**
 
 - Use `value_serializer=lambda v: json.dumps(v).encode('utf-8')` in the producer and `value_deserializer=lambda m: json.loads(m.decode('utf-8'))` in the consumer for clean JSON handling.
 - For keyed produces, pass `key=k.encode('utf-8')` (or the producer’s key serializer) when `event_id` is available.
 - Params are accessed in the script via Tekton's `$(params.param-name)` substitution syntax, injected directly into the Python code as string literals.
+- Use a small helper for structured log emission so all lines follow `[PIPELINE] {json}` consistently in both tasks.
+- Keep the pipeline resilient when DLQ params are omitted or empty: log-and-discard fallback behavior should remain available so tasks still run if DLQ topics are not configured.
 
 ---
 
@@ -133,7 +188,7 @@ Two Tekton Tasks in a single multi-document YAML file (separated by `---`).
 
 ## File 3: `tekton/pipelinerun.yaml`
 
-- **Name:** `phase1-run`
+- **metadata.generateName:** `phase1-run-` (instead of a static name) so each run has a unique object name.
 - **pipelineRef:** `phase1-pipeline`
 - **Param values:**
   - `kafka-bootstrap`: `my-cluster-kafka-bootstrap.ds551-2026-spring-9ab13b.svc.cluster.local:9092`
@@ -146,6 +201,7 @@ Two Tekton Tasks in a single multi-document YAML file (separated by `---`).
   - `routing-dlq-topic`: `ds551-s26.team02.routing_dlq`
   - `team-id`: `team02`
   - `batch-size`: `"100"` (string, reasonable default)
+- **Run command note:** use `oc create -f tekton/pipelinerun.yaml` for each run (not `oc apply`) so a new `PipelineRun` object is created every time.
 
 ---
 
@@ -158,6 +214,49 @@ Document:
 3. **Verification** — how to use `kafka-console-consumer` to confirm events land in typed topics **and** how to spot records in `validate_dlq` / `routing_dlq` (referencing the command from [docs/kafka-tips.md](docs/kafka-tips.md))
 4. **Reliability tradeoffs** — at-least-once behavior, what retries do and do not fix, and remaining duplicate risk on full replays
 5. **Challenges and solutions** — placeholder section to fill in after deployment
+6. **Consumer group semantics** — each task uses a dedicated group; with `auto_offset_reset='earliest'`, committed offsets still mean reruns consume only new messages unless offsets are reset or group IDs are changed.
+7. **Batch-size semantics** — `batch-size` is a max-messages-per-run cap, not a guarantee; `consumer_timeout_ms` exits idle loops and completing with fewer than `batch-size` is expected.
+8. **DLQ optionality note** — DLQs are an above-and-beyond extension beyond the course "log and discard" baseline; document fallback behavior when DLQ topics are not provided.
+
+Include a **resource readiness subsection** with:
+- quota-check commands (`oc get resourcequota`, `oc describe resourcequota`)
+- cleanup commands used to reclaim resources
+- final pre-run capacity check (CPU/memory/PVC availability)
+
+---
+
+## Testing Strategy (new)
+
+- **Extract pure logic modules:** Create `src/validate.py` and `src/route.py` with importable pure functions for validation/routing decisions; keep Tekton heredoc scripts in `tekton/tasks.yaml` and allow limited duplication for now.
+- **Test directory layout:**
+  - `tests/conftest.py` (shared fixtures, sample events, fake clock)
+  - `tests/unit/test_validate.py`
+  - `tests/unit/test_route.py`
+  - `tests/integration/test_kafka_pipeline.py`
+- **Parametrized unit tests:**
+  - Validate path: `(payload, expected_valid, expected_reason)`
+  - Route path: `(event_type, expected_topic)`
+  - DLQ envelope assertions must include required keys and parseable `failed_at`.
+- **Markers and execution gating:**
+  - `@pytest.mark.unit` for default fast tests
+  - `@pytest.mark.integration` for broker-dependent tests
+  - Integration tests run only when `RUN_KAFKA_INTEGRATION=1`; otherwise skip.
+- **YAML sanity check:** Add `oc apply --dry-run=client -f tekton/` as a pre-push check.
+- **Makefile test targets:**
+  - `make test` (unit only)
+  - `make test-all` (all non-integration tests)
+  - `make test-integration`
+  - `make lint-yaml`
+
+---
+
+## Priority and Sequencing (new)
+
+- **P0:** Core Tekton YAML + embedded Python logic (`tekton/tasks.yaml`, `tekton/pipeline.yaml`, `tekton/pipelinerun.yaml`) required for grading.
+- **P1:** Structured logging prefix + reason codes, `generateName` PipelineRun behavior, and README documentation for consumer group + batch-size semantics.
+- **P2:** Extract pure functions into `src/`, add parametrized unit tests, enrich DLQ envelopes with partition/offset metadata, and enforce pre-push `oc apply --dry-run=client`.
+- **P3:** DLQ topics as beyond-spec enhancement (with fallback if omitted) and Makefile convenience targets.
+- **P4:** Local Kafka/Redpanda integration test harness as post-Phase-1 hardening.
 
 ---
 
