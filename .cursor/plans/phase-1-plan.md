@@ -109,6 +109,8 @@ flowchart LR
 | **Dead-letter-missing (validation)** | **Produce** failed records to **`validate_dlq`** with a small envelope: `original_value` (raw bytes or base64 if needed), `failure_reason`, `failed_at` (ISO 8601). Still log for immediate visibility. |
 | **Dead-letter-missing (routing)** | On **producer exception** or **`event_type` not in the three allowed values**, **produce** to **`routing_dlq`** with the same style envelope plus optional `event_id` when present. Do not silently skip. |
 | **Idempotency / duplicates** | Use **`event_id` as the Kafka record key** when producing to `validated`, typed topics, and DLQs (when `event_id` exists; for totally broken payloads use a synthetic key or `None` only for `validate_dlq`). **Note:** keys improve **partition affinity** and help **downstream deduplication** if consumers implement it; they do **not** alone guarantee exactly-once across pipeline reruns—document that **replays can still duplicate** until a later phase adds transactional/idempotent semantics or a dedup store. |
+| **SPOF risk** | Avoid single-point operator/process dependence by (a) keeping both tasks independently restartable with dedicated consumer groups, (b) using `PipelineTask` retries and flush-on-exit patterns for transient infra failures, and (c) documenting a **degraded mode** where DLQ-produce failures fall back to explicit `log-and-discard` with reason code `DLQ_UNAVAILABLE` so one failing topic does not halt all processing. |
+| **Health-signal absent** | Emit machine-readable per-task health outputs (`status`, `total_consumed`, `valid_count`, `dlq_count`, `error_count`, `started_at`, `completed_at`, `duration_ms`) and aggregate them at pipeline level so operators can distinguish healthy, degraded, and failed runs quickly. |
 
 ---
 
@@ -121,9 +123,12 @@ flowchart LR
   - `BAD_EVENT_TYPE`
   - `BAD_TIMESTAMP`
   - `PRODUCE_FAILED`
+  - `DLQ_UNAVAILABLE`
+  - `KAFKA_CONNECT_FAILED`
   - `UNKNOWN_EVENT_TYPE_AFTER_VALIDATE`
 - **End-of-run summary and offsets:** In each task, log final counters (`total_consumed`, `valid_count`, `dlq_count`, `error_count`) and, before closing the consumer, call `consumer.assignment()` and `consumer.position(tp)` for each assigned partition to log final offsets. This distinguishes "topic empty" from "group already at end."
 - **DLQ envelope enrichment:** Add `original_partition` and `original_offset` (from the `ConsumerRecord`) to all DLQ records in both validation and routing tasks.
+- **Health signal contract:** Emit one final `[PIPELINE]` health payload per task that includes `status` (`healthy` / `degraded` / `failed`) and timing fields; also write Tekton Task `results` for key counters so health can be queried without log scraping.
 
 ---
 
@@ -173,6 +178,7 @@ Two Tekton Tasks in a single multi-document YAML file (separated by `---`).
 - Params are accessed in the script via Tekton's `$(params.param-name)` substitution syntax, injected directly into the Python code as string literals.
 - Use a small helper for structured log emission so all lines follow `[PIPELINE] {json}` consistently in both tasks.
 - Keep the pipeline resilient when DLQ params are omitted or empty: log-and-discard fallback behavior should remain available so tasks still run if DLQ topics are not configured.
+- Write task-level health counters to Tekton `results` (for example `health-status`, `total-consumed`, `dlq-count`, `error-count`) to support non-log health checks from `TaskRun`/`PipelineRun`.
 
 ---
 
@@ -181,8 +187,10 @@ Two Tekton Tasks in a single multi-document YAML file (separated by `---`).
 - **Name:** `phase1-pipeline`
 - **Params:** `kafka-bootstrap`, `input-topic`, `validated-topic`, `validate-dlq-topic`, `symptom-topic`, `clinic-topic`, `environmental-topic`, `routing-dlq-topic`, `team-id`, `batch-size`
 - **Tasks:**
-  1. `validate` — references `validate-events` task; **`retries: 2`** (or `3`) on the pipeline task; passes `kafka-bootstrap`, `input-topic`, `output-topic` (bound to `validated-topic`), `validate-dlq-topic`, `batch-size`
-  2. `route-and-enrich` — references `route-and-enrich` task with `runAfter: [validate]`; **`retries: 2`** (or `3`); passes `kafka-bootstrap`, `input-topic` (bound to `validated-topic`), all three typed topics, `routing-dlq-topic`, `team-id`, `batch-size`
+  1. `preflight-health-check` — lightweight check step before data processing that validates Kafka bootstrap connectivity and required topic names are non-empty; fail fast on infrastructure errors to avoid silent partial runs.
+  2. `validate` — references `validate-events` task; **`retries: 2`** (or `3`) on the pipeline task; passes `kafka-bootstrap`, `input-topic`, `output-topic` (bound to `validated-topic`), `validate-dlq-topic`, `batch-size`; `runAfter: [preflight-health-check]`
+  3. `route-and-enrich` — references `route-and-enrich` task with `runAfter: [validate]`; **`retries: 2`** (or `3`); passes `kafka-bootstrap`, `input-topic` (bound to `validated-topic`), all three typed topics, `routing-dlq-topic`, `team-id`, `batch-size`
+  4. `pipeline-health-summary` — final step that gathers task `results` and emits a single pipeline-level health verdict for operators/runbooks.
 
 ---
 
@@ -217,6 +225,8 @@ Document:
 6. **Consumer group semantics** — each task uses a dedicated group; with `auto_offset_reset='earliest'`, committed offsets still mean reruns consume only new messages unless offsets are reset or group IDs are changed.
 7. **Batch-size semantics** — `batch-size` is a max-messages-per-run cap, not a guarantee; `consumer_timeout_ms` exits idle loops and completing with fewer than `batch-size` is expected.
 8. **DLQ optionality note** — DLQs are an above-and-beyond extension beyond the course "log and discard" baseline; document fallback behavior when DLQ topics are not provided.
+9. **Health runbook section** — show how to read task `results` and final health verdict, and define operator action for `healthy`, `degraded` (`DLQ_UNAVAILABLE`), and `failed` statuses.
+10. **SPOF checks section** — document pre-run checks that reduce single points of failure (Kafka reachability, required topic presence, and degraded-mode behavior when optional sinks are unavailable).
 
 Include a **resource readiness subsection** with:
 - quota-check commands (`oc get resourcequota`, `oc describe resourcequota`)
