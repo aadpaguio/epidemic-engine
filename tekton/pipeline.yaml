@@ -1,0 +1,68 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: phase1-pipeline
+spec:
+  params:
+    - name: kafka-bootstrap
+      type: string
+    - name: input-topic
+      type: string
+    - name: validated-topic
+      type: string
+    - name: validate-dlq-topic
+      type: string
+      default: ""
+    - name: symptom-topic
+      type: string
+    - name: clinic-topic
+      type: string
+    - name: environmental-topic
+      type: string
+    - name: routing-dlq-topic
+      type: string
+      default: ""
+    - name: team-id
+      type: string
+    - name: batch-size
+      type: string
+      default: "100"
+
+  tasks:
+    - name: validate
+      taskRef:
+        name: validate-events
+      params:
+        - name: kafka-bootstrap
+          value: $(params.kafka-bootstrap)
+        - name: input-topic
+          value: $(params.input-topic)
+        - name: output-topic
+          value: $(params.validated-topic)
+        - name: validate-dlq-topic
+          value: $(params.validate-dlq-topic)
+        - name: batch-size
+          value: $(params.batch-size)
+
+    - name: route-and-enrich
+      runAfter:
+        - validate
+      taskRef:
+        name: route-and-enrich
+      params:
+        - name: kafka-bootstrap
+          value: $(params.kafka-bootstrap)
+        - name: input-topic
+          value: $(params.validated-topic)
+        - name: symptom-topic
+          value: $(params.symptom-topic)
+        - name: clinic-topic
+          value: $(params.clinic-topic)
+        - name: environmental-topic
+          value: $(params.environmental-topic)
+        - name: routing-dlq-topic
+          value: $(params.routing-dlq-topic)
+        - name: team-id
+          value: $(params.team-id)
+        - name: batch-size
+          value: $(params.batch-size)
