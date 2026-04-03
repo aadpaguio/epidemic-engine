@@ -4,10 +4,10 @@ overview: Lightweight SPOF and health-signal additions that fit into the existin
 todos:
   - id: dlq-fallback
     content: Wrap DLQ produces in try/except with DLQ_UNAVAILABLE log-and-discard fallback in both task scripts
-    status: pending
+    status: already exists, implementation slightly different in each task
   - id: health-log-line
     content: Add a final structured [PIPELINE] health summary log line at the end of each task (status, counters, timing)
-    status: pending
+    status: done
   - id: readme-health-and-spof
     content: Add health interpretation and SPOF mitigation sections to tekton/README.md
     status: pending
