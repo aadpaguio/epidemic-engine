@@ -40,6 +40,7 @@ spec:
         import json
         import os
         import re
+        import uuid
         from datetime import datetime, timezone
 
         from kafka import KafkaConsumer, KafkaProducer
@@ -55,10 +56,14 @@ spec:
         DLQ_TOPIC = os.environ.get("VALIDATE_DLQ_TOPIC", "").strip()
         BATCH_SIZE = max(0, int(os.environ.get("BATCH_SIZE", "100")))
 
-        ALLOWED_TYPES = frozenset(
-            {"symptom_report", "clinic_visit", "environmental_conditions"}
+        # INSTRUCTIONS.md Stage 1 — required base fields only (event_type filtering is Stage 2).
+        REQUIRED_FIELDS = (
+            "event_id",
+            "event_type",
+            "patient_id",
+            "timestamp",
+            "region",
         )
-        REQUIRED_FIELDS = ("event_id", "event_type", "patient_id", "timestamp")
         _EVENT_ID_RE = re.compile(rb'"event_id"\s*:\s*"([^"]*)"')
 
         def pipeline_log(
@@ -90,6 +95,19 @@ spec:
                 return m.group(1).decode("utf-8", errors="replace")
             return None
 
+        def synthesize_event_id_if_missing(obj: dict) -> bool:
+            """Assign evt-<uuid> when event_id is missing or blank. Returns True if assigned."""
+            eid = obj.get("event_id")
+            missing = (
+                eid is None
+                or eid == ""
+                or (isinstance(eid, str) and eid.strip() == "")
+            )
+            if missing:
+                obj["event_id"] = f"evt-{uuid.uuid4()}"
+                return True
+            return False
+
         def validate_obj(obj) -> tuple[bool, str | None, str | None]:
             """Returns (ok, reason_code, event_id_str)."""
             if not isinstance(obj, dict):
@@ -101,10 +119,6 @@ spec:
             for field in REQUIRED_FIELDS:
                 if field not in obj or obj[field] in (None, ""):
                     return False, f"MISSING_FIELD:{field}", eid_str
-
-            et = obj["event_type"]
-            if et not in ALLOWED_TYPES:
-                return False, "BAD_EVENT_TYPE", eid_str
 
             ts = obj["timestamp"]
             if not isinstance(ts, str):
@@ -196,6 +210,7 @@ spec:
                                 dlq_count += 1
                             continue
 
+                        synthesized_id = synthesize_event_id_if_missing(obj)
                         ok, reason_code, eid = validate_obj(obj)
                         kid = eid if eid else stable_key_from_raw(raw)
 
@@ -212,6 +227,11 @@ spec:
                                     "valid",
                                     "OK",
                                     OUTPUT_TOPIC,
+                                    (
+                                        {"event_id_source": "synthetic"}
+                                        if synthesized_id
+                                        else None
+                                    ),
                                 )
                             except Exception as pe:
                                 error_count += 1
@@ -294,7 +314,7 @@ spec:
         print(f"[PIPELINE] {json.dumps(summary)}", flush=True)
         print(
             "SUMMARY validate-events: "
-            f"status={summary_status}"
+            f"status={summary_status} "
             f"consumed={total_consumed} valid={valid_count} "
             f"dlq={dlq_count} errors={error_count}",
             flush=True,
@@ -318,7 +338,7 @@ spec:
       type: string
     - name: clinic-topic
       type: string
-    - name: environmental-topic
+    - name: hospital-topic
       type: string
     - name: routing-dlq-topic
       type: string
@@ -340,8 +360,8 @@ spec:
           value: $(params.symptom-topic)
         - name: CLINIC_TOPIC
           value: $(params.clinic-topic)
-        - name: ENV_TOPIC
-          value: $(params.environmental-topic)
+        - name: HOSPITAL_TOPIC
+          value: $(params.hospital-topic)
         - name: ROUTING_DLQ_TOPIC
           value: $(params.routing-dlq-topic)
         - name: TEAM_ID
@@ -369,7 +389,7 @@ spec:
         INPUT_TOPIC = os.environ["INPUT_TOPIC"]
         SYMPTOM_TOPIC = os.environ["SYMPTOM_TOPIC"]
         CLINIC_TOPIC = os.environ["CLINIC_TOPIC"]
-        ENV_TOPIC = os.environ["ENV_TOPIC"]
+        HOSPITAL_TOPIC = os.environ["HOSPITAL_TOPIC"]
         DLQ_TOPIC = os.environ.get("ROUTING_DLQ_TOPIC", "").strip()
         TEAM_ID = os.environ["TEAM_ID"]
         BATCH_SIZE = max(0, int(os.environ.get("BATCH_SIZE", "100")))
@@ -377,7 +397,7 @@ spec:
         TYPE_TO_TOPIC = {
             "symptom_report": SYMPTOM_TOPIC,
             "clinic_visit": CLINIC_TOPIC,
-            "environmental_conditions": ENV_TOPIC,
+            "hospital_admission": HOSPITAL_TOPIC,
         }
 
         def pipeline_log(
@@ -406,7 +426,9 @@ spec:
         def enrich(payload: dict) -> dict:
             out = dict(payload)
             out["team_id"] = TEAM_ID
-            out["processing_timestamp"] = datetime.utcnow().isoformat() + "Z"
+            out["processing_timestamp"] = (
+                datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            )
             out["event_source"] = "ds551-event-generator"
             return out
 
@@ -447,6 +469,7 @@ spec:
         )
 
         total_consumed = valid_count = dlq_count = error_count = 0
+        silent_dropped = 0
         summary_status = ""
 
         try:
@@ -533,32 +556,9 @@ spec:
                         et = obj.get("event_type")
                         target = TYPE_TO_TOPIC.get(et) if et is not None else None
 
+                        # INSTRUCTIONS.md Stage 2 — unroutable types: silent drop (no topic, no DLQ).
                         if target is None:
-                            rc = "UNKNOWN_EVENT_TYPE_AFTER_VALIDATE"
-                            pipeline_log(
-                                eid_str,
-                                "dlq",
-                                rc,
-                                DLQ_TOPIC or None,
-                            )
-                            envelope = {
-                                "failure_reason": rc,
-                                "reason_code": rc,
-                                "unknown_event_type": et,
-                                "payload": obj,
-                                "failed_at": datetime.now(timezone.utc)
-                                .isoformat()
-                                .replace("+00:00", "Z"),
-                                "original_partition": part,
-                                "original_offset": off,
-                            }
-                            sent, perr = send_routing_dlq(producer, kid, envelope)
-                            if perr:
-                                error_count += 1
-                            elif sent:
-                                dlq_count += 1
-                            else:
-                                dlq_count += 1
+                            silent_dropped += 1
                             continue
 
                         enriched = enrich(obj)
@@ -623,6 +623,7 @@ spec:
             "status": summary_status,
             "total_consumed": total_consumed,
             "valid_count": valid_count,
+            "silent_dropped": silent_dropped,
             "dlq_count": dlq_count,
             "error_count": error_count,
             "final_positions": positions,
@@ -630,9 +631,9 @@ spec:
         print(f"[PIPELINE] {json.dumps(summary)}", flush=True)
         print(
             "SUMMARY route-and-enrich: "
-            f"status={summary_status}"
+            f"status={summary_status} "
             f"consumed={total_consumed} valid={valid_count} "
-            f"dlq={dlq_count} errors={error_count}",
+            f"silent_dropped={silent_dropped} dlq={dlq_count} errors={error_count}",
             flush=True,
         )
         PY
