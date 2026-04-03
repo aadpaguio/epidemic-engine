@@ -3,7 +3,10 @@ kind: Task
 metadata:
   name: validate-events
 spec:
-  description: Consume raw Kafka events, validate schema, produce valid records to output topic and invalid ones to validate DLQ.
+  description: >
+    Consume raw Kafka events, validate schema, produce valid records to output topic and invalid ones to validate DLQ.
+    INSTRUCTIONS.md requires event_id, but the course event stream often omits it; this task assigns evt-<uuid> when missing
+    before validation so the pipeline can run end-to-end.
   params:
     - name: kafka-bootstrap
       type: string
@@ -56,7 +59,8 @@ spec:
         DLQ_TOPIC = os.environ.get("VALIDATE_DLQ_TOPIC", "").strip()
         BATCH_SIZE = max(0, int(os.environ.get("BATCH_SIZE", "100")))
 
-        # INSTRUCTIONS.md Stage 1 — required base fields only (event_type filtering is Stage 2).
+        # INSTRUCTIONS.md Stage 1 — required base fields; event_type routing is Stage 2.
+        # event_id is required by the spec but frequently absent on the wire; see synthesize_event_id_if_missing below.
         REQUIRED_FIELDS = (
             "event_id",
             "event_type",
@@ -95,6 +99,7 @@ spec:
                 return m.group(1).decode("utf-8", errors="replace")
             return None
 
+        # Synthetic id generator: generator payloads did not include event_id; spec still expects it for validated output.
         def synthesize_event_id_if_missing(obj: dict) -> bool:
             """Assign evt-<uuid> when event_id is missing or blank. Returns True if assigned."""
             eid = obj.get("event_id")
@@ -209,6 +214,7 @@ spec:
                                 dlq_count += 1
                             continue
 
+                        # Run after JSON parse, before validate_obj (so required event_id can be satisfied).
                         synthesized_id = synthesize_event_id_if_missing(obj)
                         ok, reason_code, eid = validate_obj(obj)
                         kid = eid if eid else stable_key_from_raw(raw)
