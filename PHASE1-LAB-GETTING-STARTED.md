@@ -174,20 +174,21 @@ The Event Generator produces events like this:
 
 ```json
 {
-  "event_id": "evt-12345abc",
   "event_type": "symptom_report",
-  "patient_id": "pat-xyz789",
+  "patient_id": "P12345",
   "timestamp": "2026-03-24T14:30:00Z",
-  "location": "Boston",
+  "region": "Boston",
   "severity": "moderate",
-  "description": "Patient sneezed very loudly in the Bean"
+  "symptoms": ["sneezing", "fatigue"]
 }
 ```
 
 **Key field:** `event_type` is always one of:
 - `symptom_report` → goes to `ds551-s26.teamXX.symptom_reports` output topic
 - `clinic_visit` → goes to `ds551-s26.teamXX.clinic_visits`
-- `environmental_conditions` → goes to `ds551-s26.teamXX.environmental_conditions`
+- `hospital_admission` → goes to `ds551-s26.teamXX.hospital_admissions`
+
+The generator also produces `general_health_report`, `vaccination`, and `emergency_incident` events — these are noise events with only `event_type`, `timestamp`, and `region`. Your pipeline should silently drop them after validation.
 
 ### Step 4: Write Your Tekton Tasks
 
@@ -197,8 +198,8 @@ You need to create a Tekton Task that:
 
 1. **Connects to Kafka** — use `KafkaConsumer` or equivalent to read from the input topic
 2. **Defines validation rules:**
-   - Required fields: `event_id`, `event_type`, `timestamp` (look at the event structure above to understand what must be present)
-   - Valid event_types: only accept `symptom_report`, `clinic_visit`, `environmental_conditions`
+   - Required fields: `event_type`, `timestamp`, `region`
+   - Valid event_types: accept all six types; the three routable ones (`symptom_report`, `clinic_visit`, `hospital_admission`) will be forwarded; the others will be dropped at routing
 3. **Processes each event:**
    - If validation passes → send to the output topic
    - If validation fails → log the reason (print to stdout) and skip the event (don't send it)
