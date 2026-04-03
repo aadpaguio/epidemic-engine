@@ -1,4 +1,4 @@
-# Team [XX] — Epidemic Engine
+# Team [02] — Epidemic Engine
 
 **DS-551 Data Engineering at Scale — Spring 2026**
 
@@ -6,22 +6,24 @@
 
 ## Project Overview
 
-[Brief description of what your Epidemic Engine does]
+A cloud-native data platform for processing synthetic, funny epidemiological events. 
+
+Events are validated, then enriched and routed, so that analytics can be performed (in a later phase).
 
 ---
 
 ## Team Members
 
-- [Name 1] — [Role/Contributions]
-- [Name 2] — [Role/Contributions]
-- [Name 3] — [Role/Contributions]
-- [Name 4] — [Role/Contributions]
+- [Aidan Smith] — [Pipelinerun, design/planning]
+- [Arnald Paguio] — [Task definitions]
+- [Evan Ferguson-Hull] — [Logging cleanup and README]
+- [Jason Nguyen] — [Pipeline development]
 
 ---
 
 ## Architecture
 
-[High-level description of your system]
+The Phase 1 Tekton pipeline ingests raw epidemiological events from Kafka, validates their schema, enriches them with metadata, and routes them to typed output topics—with dead-letter topics for rejects and routing failures, Tekton retries for transient task failures, and keyed produces for idempotency-aware downstream handling.
 
 See `docs/architecture.md` for detailed architecture documentation.
 
@@ -49,7 +51,7 @@ oc get pipelinerun -n <your-namespace>
 
 ### Verification
 
-[How to verify your current project work is functioning]
+Pipeline logs are dumped in a summary json that is human-readable, and contains both high-level summary results and detailed success and error records.
 
 ---
 
@@ -65,7 +67,9 @@ oc get pipelinerun -n <your-namespace>
 │   ├── spark-tips.md
 │   └── tekton-tips.md
 ├── tekton/
-│   └── [your Phase 1 files go here]
+│   └── pipeline.yaml
+│   └── pipelinerun.yaml
+│   └── tasks.yaml
 ├── spark/
 │   └── [used later]
 └── k8s/
@@ -79,16 +83,16 @@ Additional folders and files will be added later as the project grows.
 ## Phase Status
 
 ### Architecture Plan ⏳
-- [ ] Database choice documented
-- [ ] Planned analytics described
-- [ ] Team roles assigned
+- [x] Database choice documented
+- [x] Planned analytics described
+- [x] Team roles assigned
 
 ### Phase 1: Tekton Pipeline ⏳
-- [ ] `validate-events` task implemented
-- [ ] `route-and-enrich` task implemented
-- [ ] Pipeline runs successfully
-- [ ] Typed topics receiving events
-- [ ] `tekton/README.md` complete
+- [x] `validate-events` task implemented
+- [x] `route-and-enrich` task implemented
+- [x] Pipeline runs successfully
+- [x] Typed topics receiving events
+- [x] `tekton/README.md` complete
 
 ---
 
