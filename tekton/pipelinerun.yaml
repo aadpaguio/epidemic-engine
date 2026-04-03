@@ -18,8 +18,8 @@ spec:
       value: ds551-s26.team02.symptom_reports
     - name: clinic-topic
       value: ds551-s26.team02.clinic_visits
-    - name: environmental-topic
-      value: ds551-s26.team02.environmental
+    - name: hospital-topic
+      value: ds551-s26.team02.hospital_admissions
     - name: routing-dlq-topic
       value: ds551-s26.team02.routing_dlq
     - name: team-id

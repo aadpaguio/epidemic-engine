@@ -17,7 +17,7 @@ spec:
       type: string
     - name: clinic-topic
       type: string
-    - name: environmental-topic
+    - name: hospital-topic
       type: string
     - name: routing-dlq-topic
       type: string
@@ -58,8 +58,8 @@ spec:
           value: $(params.symptom-topic)
         - name: clinic-topic
           value: $(params.clinic-topic)
-        - name: environmental-topic
-          value: $(params.environmental-topic)
+        - name: hospital-topic
+          value: $(params.hospital-topic)
         - name: routing-dlq-topic
           value: $(params.routing-dlq-topic)
         - name: team-id
