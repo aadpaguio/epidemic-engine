@@ -1,0 +1,55 @@
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+
+[notice] A new release of pip is available: 24.0 -> 26.0.1
+[notice] To update, run: pip install --upgrade pip
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-a1358c3e-8573-4617-9a02-cfdb8b2f5b41", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-3c0089ed-f0a2-4118-98d1-1a3a0ffb8295", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-758969eb-8cd5-4c47-9868-d99d1cacacad", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-3994bbeb-5131-489e-97be-1e6c3bb20221", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-6bacb55f-df3c-4b91-9d99-d6a9ff98f81d", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-d03c954d-a4d8-4e40-a3bf-23d9edd3bd1f", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-4a90c8a3-2940-4de3-b3c1-e5d47f3acba9", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-e22a4c7b-21bc-4aec-b19a-4135369e7cee", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-65aa5319-29a9-465b-b239-04940fe735d9", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-f8056eae-430d-4b6b-abad-ae66ef9c3862", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-31c98dc5-00b8-4d89-94f6-3fffdeefb9c8", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-5adf6f70-4ae3-4fc6-81c9-48181bf094c3", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-ea92c49e-1987-4df3-a877-4187c655486c", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-bc948e6c-9fe9-460f-8f63-e583a14249de", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-7999e9d5-dfa5-4225-8b1f-ade729c120db", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-31b63354-a465-4260-b2af-c8fadc09aef4", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-01792bf2-881d-4e66-9b99-ff53c44a4700", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-d1d94bf6-df38-460a-8bc9-55607373575c", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-408f92f8-414a-4bc8-9926-373684af6c4f", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-d18baefb-6f5a-47d4-954c-5d6abed613e8", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-77eca2ae-4ee5-4726-ad28-e5237a21d225", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-f19a8a01-e770-4606-b597-3029bd944970", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.clinic_visits"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-5e0c854f-1d9a-49d3-bdb7-bc52b3311e4e", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-7fea4cbf-ea3b-4c0d-9e67-362945eba700", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.clinic_visits"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-266041ab-b941-4917-b24a-3acccc0a573b", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.clinic_visits"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-adf84a32-6d0a-4675-b333-95e4a371991b", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-60e4f4c6-0537-4195-b85c-412c0edefc84", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-15bad2ea-65cc-4a86-b9ff-2f8373cf152a", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-364852db-73bd-47b1-8db6-9b17bc0f670a", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-bb1ebfce-776f-4a4c-ad04-ccc559beb410", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-9866e20f-f9b6-410a-b21a-0a30371bba2d", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-375a6e59-e6bd-4809-a813-b9c83caf54ca", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-f5e80568-97df-48f5-8001-cd48581aae2f", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-9038dca7-dbf5-4e42-90af-455ea6da07cd", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-9171627f-2eff-4e57-a0ee-cb37f0d66db7", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-730276fb-12b9-45ba-aa45-1480100e6a65", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-f83799c8-1e18-4223-89a6-d8515473da03", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-5d54729a-31ee-49a9-b88c-474d76d3d5d7", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-00c0ba45-f1b3-40c3-8f1c-9fc3e569cabc", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-4d82fe04-bfa1-474c-b9fb-739ea4bca99a", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.symptom_reports"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-dc452a6c-c0c7-4db4-9450-6adbdef1464b", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-901e8b8e-8896-4476-a779-68db0abaf7f0", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-456d229e-a05c-4f28-8de2-f17b5d714928", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-4e8e5ad9-c607-49c0-bbff-325e7fbadb98", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-5771d544-555b-4fcd-b3e8-57fd0a318c8b", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-035c2358-ca13-46c3-9f59-05dbcbe30c5e", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-35308746-e28d-41e3-b67c-dfd5fd13298a", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-73fdbc8f-53df-458c-bdf3-fb3929511b61", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "event_id": "evt-80880e1d-a41f-4592-b28d-fe08461b300b", "outcome": "valid", "reason_code": "OK", "target_topic": "ds551-s26.team02.hospital_admissions"}
+[PIPELINE] {"task": "route-and-enrich", "phase": "route", "total_consumed": 49, "valid_count": 49, "silent_dropped": 0, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 100}}
+SUMMARY route-and-enrich: consumed=49 valid=49 silent_dropped=0 dlq=0 errors=0
