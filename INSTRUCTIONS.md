@@ -46,7 +46,6 @@ The event generator continuously sends synthetic, funny epidemiological events t
 
 ```json
 {
-  "event_id": "evt-abc123",
   "event_type": "symptom_report",
   "timestamp": "2026-03-24T10:15:00Z",
   "patient_id": "P12345",
@@ -113,7 +112,7 @@ ds551-s26.teamXX.hospital_admissions
 
 Read from your raw topic and validate each event:
 
-- Check that all required fields are present: `event_id`, `event_type`, `patient_id`, `timestamp`, `region`
+- Check that all required fields are present: `event_type`, `timestamp`, `region`
 - Confirm `timestamp` is a parseable ISO 8601 string
 - Write valid events to `ds551-s26.teamXX.validated`
 - Log and discard invalid events; do not forward them
