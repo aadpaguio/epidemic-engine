@@ -152,6 +152,7 @@ spec:
         )
 
         total_consumed = valid_count = dlq_count = error_count = 0
+        summary_status = ""
 
         try:
             while total_consumed < BATCH_SIZE:
@@ -290,6 +291,8 @@ spec:
                         break
                 if total_consumed >= BATCH_SIZE:
                     break
+        except: 
+            summary_status="failed"
         finally:
             producer.flush()
             assignment = consumer.assignment()
@@ -298,9 +301,16 @@ spec:
                 positions[f"{tp.topic}:{tp.partition}"] = consumer.position(tp)
             consumer.close()
 
+        if summary_status!="failed":
+            if (error_count==0) and (dlq_count==0): 
+                summary_status="healthy"
+            else: 
+                summary_status="degraded"
+
         summary = {
             "task": TASK,
             "phase": PHASE,
+            "status": summary_status,
             "total_consumed": total_consumed,
             "valid_count": valid_count,
             "dlq_count": dlq_count,
@@ -310,6 +320,7 @@ spec:
         print(f"[PIPELINE] {json.dumps(summary)}", flush=True)
         print(
             "SUMMARY validate-events: "
+            f"status={summary_status} "
             f"consumed={total_consumed} valid={valid_count} "
             f"dlq={dlq_count} errors={error_count}",
             flush=True,
@@ -465,6 +476,7 @@ spec:
 
         total_consumed = valid_count = dlq_count = error_count = 0
         silent_dropped = 0
+        summary_status = ""
 
         try:
             while total_consumed < BATCH_SIZE:
@@ -595,6 +607,8 @@ spec:
                         break
                 if total_consumed >= BATCH_SIZE:
                     break
+        except:
+            summary_status="failed"
         finally:
             producer.flush()
             assignment = consumer.assignment()
@@ -603,9 +617,16 @@ spec:
                 positions[f"{tp.topic}:{tp.partition}"] = consumer.position(tp)
             consumer.close()
 
+        if summary_status!="failed":
+            if (error_count==0) and (dlq_count==0): 
+                summary_status="healthy"
+            else: 
+                summary_status="degraded"
+
         summary = {
             "task": TASK,
             "phase": PHASE,
+            "status": summary_status,
             "total_consumed": total_consumed,
             "valid_count": valid_count,
             "silent_dropped": silent_dropped,
@@ -616,6 +637,7 @@ spec:
         print(f"[PIPELINE] {json.dumps(summary)}", flush=True)
         print(
             "SUMMARY route-and-enrich: "
+            f"status={summary_status} "
             f"consumed={total_consumed} valid={valid_count} "
             f"silent_dropped={silent_dropped} dlq={dlq_count} errors={error_count}",
             flush=True,

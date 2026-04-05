@@ -6,7 +6,7 @@ Document your use of AI tools throughout this project.
 
 ## AI Tools Used
 
-[List the AI tools you used]
+Cursor, GitHub Copliot
 
 ## How We Used AI
 
@@ -16,7 +16,7 @@ Document your use of AI tools throughout this project.
 [Paste your successful prompts here]
 
 **What AI helped with:**
-[List specific help received]
+AI helped with planning the structure of the project, creating first drafts of the necessary config files, suggesting ideas for additional hardening.
 
 **What AI got wrong:**
 [List mistakes or misleading suggestions and how you identified or fixed them]
