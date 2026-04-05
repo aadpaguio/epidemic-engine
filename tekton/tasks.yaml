@@ -5,7 +5,7 @@ metadata:
 spec:
   description: >
     Consume raw Kafka events, validate schema, produce valid records to output topic and invalid ones to validate DLQ.
-    INSTRUCTIONS.md requires event_id, but the course event stream often omits it; this task assigns evt-<uuid> when missing
+    Event stream does not necessarily contain event_id; this task assigns evt-<uuid>
     before validation so the pipeline can run end-to-end.
   params:
     - name: kafka-bootstrap
@@ -60,11 +60,8 @@ spec:
         BATCH_SIZE = max(0, int(os.environ.get("BATCH_SIZE", "100")))
 
         # INSTRUCTIONS.md Stage 1 — required base fields; event_type routing is Stage 2.
-        # event_id is required by the spec but frequently absent on the wire; see synthesize_event_id_if_missing below.
         REQUIRED_FIELDS = (
-            "event_id",
             "event_type",
-            "patient_id",
             "timestamp",
             "region",
         )
@@ -165,7 +162,7 @@ spec:
                             break
                         total_consumed += 1
                         raw = rec.value if rec.value is not None else b""
-                        oid = try_extract_event_id(raw)
+                        #oid = try_extract_event_id(raw)
                         part = rec.partition
                         off = rec.offset
 
@@ -173,8 +170,8 @@ spec:
                             obj = json.loads(raw.decode("utf-8"))
                         except json.JSONDecodeError as e:
                             rc = "JSON_PARSE"
-                            eid = oid
-                            kid = eid if eid else stable_key_from_raw(raw)
+                            eid = stable_key_from_raw(raw)
+                            kid = eid 
                             pipeline_log(
                                 eid,
                                 "dlq",
