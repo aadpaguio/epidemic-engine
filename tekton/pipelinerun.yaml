@@ -7,7 +7,7 @@ spec:
     name: phase1-pipeline
   params:
     - name: kafka-bootstrap
-      value: kafka-team02:9092
+      value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
     - name: input-topic
       value: ds551-s26.team02.raw
     - name: validated-topic
