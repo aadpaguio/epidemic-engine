@@ -256,7 +256,7 @@ Document exact `SELECT` queries in `spark/README.md` for graders/operators (unch
 Implement a two-layer design:
 
 1. **Canonical Spark fact layer (for Phase 3 feature engineering flexibility):** Spark writes hourly fact hypertables at natural keys with explicit `batch_id` and `run_timestamp`.  
-2. **Derived analytics layer (for rubric-visible outputs):** TimescaleDB SQL views or continuous aggregates produce the six named analytics from the fact tables.
+2. **Derived analytics layer (for rubric-visible outputs):** TimescaleDB SQL views or continuous aggregates produce the six named analytics from the fact tables; Spark does **not** write Layer B rows directly.
 
 #### Layer A: canonical Spark hourly facts (persisted)
 
@@ -275,6 +275,8 @@ Implement a two-layer design:
 - **If a ratio is persisted, also persist its numerator and denominator** in a canonical fact table (e.g. `admission_count`, `symptom_count`).
 
 #### Layer B: derived analytics (official Phase 2 six outputs)
+
+Layer B is computed **inside TimescaleDB** from Layer A hypertables using SQL views and/or continuous aggregates. Keep Layer B definitions in DB DDL (`infra/database-init.sql`) so Spark remains focused on fact generation.
 
 | # | Derived analytic (served from facts) | Definition (business intent) | Suggested serving grain |
 |---|---|---|---|
