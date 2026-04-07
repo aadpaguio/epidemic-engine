@@ -263,7 +263,13 @@ Six **distinct** analytics (exceeds rubric minimum); each becomes a **feature ta
 | 5 | **Average patient temperature by diagnosis code** | Mean (and optionally count) of **`temperature_f`** from **clinic_visit**, grouped by **`diagnosis_code`**, for fever–diagnosis associations. | `clinic_visit` | per diagnosis (batch snapshot dim) or per diagnosis **and** day if time evolution is desired—pick one and document |
 | 6 | **Follow-up requirement rate by clinic** | Proportion of visits with **`follow_up_required = true`** per **`clinic_id`**, flagging clinics with disproportionately complex cases. | `clinic_visit` | per `clinic_id` per batch or per day: `visit_count`, `follow_up_count`, `follow_up_rate` |
 
-- **Writes:** JDBC `append` (or upsert where natural key exists) — document whether Phase 3 uses **latest batch only** or **full history** for training.
+**Hourly batch semantics (completeness and late data).** A batch job reads a **bounded snapshot** of Kafka (and/or a raw store) at run time—not a moving live stream—so define explicitly **which wall-clock hour** each run “closes” and how rows for `bucket_start` stay correct.
+
+- **Close the hour after it ends (recommended default):** Schedule the CronJob to run shortly **after** the target hour finishes (e.g. at **`:05`** each hour) and aggregate the **previous** full **1 h** window by **event** `timestamp` into `bucket_start`. That avoids treating 10:00–10:59 as final while events at 10:58 are still in flight. Document timezone (prefer **UTC** for `bucket_start`) and the exact window rule (e.g. `[bucket_start, bucket_start + 1h)`).
+- **Snapshot vs. stragglers:** Events whose timestamps fall in hour *H* but are **read only after** the run that first wrote hour *H* are invisible to that run; the next run must **re-include** hour *H* if you require correctness—see below.
+- **Optional hardening:** A short **lookback** (recompute the last *N* hours each run) plus **upsert** on the natural key `(bucket_start, dimension keys…)` updates aggregates when late or out-of-order events arrive; **append-only** without recompute yields **stale or duplicate** hourly rows.
+
+- **Writes:** JDBC `append` (or upsert where natural key exists) — document whether Phase 3 uses **latest batch only** or **full history** for training; if hourly buckets use upsert + lookback, say so in `spark/README.md` and the runbook.
 - **Comments** in code: one block per row in the table above (required by Phase 2 rubric).
 
 ---
@@ -281,7 +287,7 @@ Six **distinct** analytics (exceeds rubric minimum); each becomes a **feature ta
 - **Container image:** Internal registry image reference after push.
 - **Env:** `KAFKA_BOOTSTRAP`, topic names (or single configmap), `DATABASE_*` connection settings, optional `BATCH_ID`.
 - **Resources:** requests/limits appropriate to quota.
-- **restartPolicy / backoffLimit** for Jobs; **schedule** for CronJobs.
+- **restartPolicy / backoffLimit** for Jobs; **schedule** for CronJobs—align with **Hourly batch semantics** above (e.g. run at minute 5 to close the previous clock hour, not mid-hour).
 - **serviceAccountName** wired to RBAC in `infra/spark-rbac.yaml`.
 
 ---
