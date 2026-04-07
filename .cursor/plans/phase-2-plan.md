@@ -260,13 +260,13 @@ Implement a two-layer design:
 
 #### Layer A: canonical Spark hourly facts (persisted)
 
-| Fact table | Natural key (plus `batch_id`) | Canonical measures (store additive/recomputable values first) |
-|---|---|---|
-| `feature_region_hourly` | `bucket_start`, `region` | `symptom_count`, `admission_count`, event-type counts, severity bucket counts, `duration_days_sum/count`, optional `temperature_sum/count` |
-| `feature_clinic_hourly` | `bucket_start`, `clinic_id` | `visit_count`, `follow_up_true_count`, `temperature_sum/count`, optional severity buckets and visit-type counts |
-| `feature_hospital_hourly` | `bucket_start`, `hospital_id` | `admission_count`, severity bucket counts, `temperature_sum/count`, `oxygen_sum/count`, `expected_los_sum/count` |
-| `feature_diagnosis_hourly` (long/sparse) | `bucket_start`, `clinic_id`, `diagnosis_code` | `diagnosis_visit_count`, optional `temperature_sum/count` |
-| `feature_symptom_hourly` (long/sparse) | `bucket_start`, `region`, `symptom_token` | `symptom_token_count` from exploded symptom arrays |
+| Fact table | Source topics | Natural key (plus `batch_id`) | Canonical measures (store additive/recomputable values first) |
+|---|---|---|---|
+| `feature_region_hourly` | `ds551-s26.team02.symptom_reports`, `ds551-s26.team02.hospital_admissions`, optional `ds551-s26.team02.clinic_visits` for cross-stream totals | `bucket_start`, `region` | `symptom_count`, `admission_count`, event-type counts, severity bucket counts, `duration_days_sum/count`, optional `temperature_sum/count` |
+| `feature_clinic_hourly` | `ds551-s26.team02.clinic_visits` | `bucket_start`, `clinic_id` | `visit_count`, `follow_up_true_count`, `temperature_sum/count`, optional severity buckets and visit-type counts |
+| `feature_hospital_hourly` | `ds551-s26.team02.hospital_admissions` | `bucket_start`, `hospital_id` | `admission_count`, severity bucket counts, `temperature_sum/count`, `oxygen_sum/count`, `expected_los_sum/count` |
+| `feature_diagnosis_hourly` (long/sparse) | `ds551-s26.team02.clinic_visits` | `bucket_start`, `clinic_id`, `diagnosis_code` | `diagnosis_visit_count`, optional `temperature_sum/count` |
+| `feature_symptom_hourly` (long/sparse) | `ds551-s26.team02.symptom_reports` | `bucket_start`, `region`, `symptom_token` | `symptom_token_count` from exploded symptom arrays |
 
 **Design cautions (required):**
 
