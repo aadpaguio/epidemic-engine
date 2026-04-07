@@ -236,7 +236,8 @@ Document exact `SELECT` queries in `spark/README.md` for graders/operators (unch
 ## File 2: `infra/database-init.sql`
 
 - **Extension:** `CREATE EXTENSION IF NOT EXISTS timescaledb;`
-- **Feature tables:** One table per analytic output (or a small number of clearly named tables); each with a **timestamptz** column suitable for `create_hypertable` (e.g. `bucket_start` or `observed_at`).
+- **Canonical fact tables:** Create Spark-owned hourly fact tables (`feature_region_hourly`, `feature_clinic_hourly`, `feature_hospital_hourly`, plus long tables such as diagnosis/symptom hourly) with a **timestamptz** time column (`bucket_start`) for `create_hypertable`.
+- **Derived layer objects:** Define SQL views or continuous aggregates for the six official analytics that read from the fact tables.
 - **Hypertables:** `SELECT create_hypertable('feature_<name>', 'bucket_start');` (chunk interval tuned after first load—document in README).
 - **Indexes:** Composite indexes on `(region, bucket_start)`, `(hospital_id, bucket_start)`, `(clinic_id, bucket_start)`, `(diagnosis_code)`, matching filter patterns in Phase 3.
 - **Optional (bonus narrative):** **Continuous aggregates** for the heaviest dashboards (e.g. hourly rollups from finer chunks)—refresh policy documented in runbook.
@@ -252,16 +253,37 @@ Document exact `SELECT` queries in `spark/README.md` for graders/operators (unch
 
 ### Batch analytics (feature store outputs)
 
-Six **distinct** analytics (exceeds rubric minimum); each becomes a **feature table** row set with explicit time buckets, `batch_id`, and `run_timestamp` so Phase 3 can train or serve on stable snapshots.
+Implement a two-layer design:
 
-| # | Feature / analytic | Definition (business intent) | Primary inputs | Suggested grain (hypertable time column) |
-|---|---------------------|------------------------------|----------------|----------------------------------------|
-| 1 | **Regional disease severity trend** | Average `severity` and **case count** per `region` over **rolling time windows** to surface regions trending worse. | `symptom_report` (+ base `region`, `timestamp`) | e.g. 1 h buckets with Spark window functions for rolling avg/count; store `bucket_start`, `region`, `avg_severity`, `case_count`, optional rolling N-window metadata |
-| 2 | **Hospital capacity pressure index** | Relate **`available_beds`** (or derived occupancy proxy) to **admission rate** per `hospital_id` to flag facilities approaching capacity **before** saturation. | `hospital_admission` | e.g. per hospital per hour: `admissions_count`, `avg_available_beds`, `pressure_index` (define formula in code + README—e.g. admissions / max(available_beds, ε)) |
-| 3 | **Symptom-to-admission escalation rate** | Ratio of **admissions** to **symptom reports** per `region` (same time bucket) to detect severity worsening vs. raw case volume. | `symptom_report` + `hospital_admission` joined on `region` + time window | e.g. hourly: `region`, `symptom_count`, `admission_count`, `escalation_rate` |
-| 4 | **Event volume by type over time** | Count events per **`event_type`** per hour for pipeline throughput and activity mix. | Union of parsed streams or counts per topic | hourly: `bucket_start`, `event_type`, `event_count` |
-| 5 | **Average patient temperature by diagnosis code** | Mean (and optionally count) of **`temperature_f`** from **clinic_visit**, grouped by **`diagnosis_code`**, for fever–diagnosis associations. | `clinic_visit` | per diagnosis (batch snapshot dim) or per diagnosis **and** day if time evolution is desired—pick one and document |
-| 6 | **Follow-up requirement rate by clinic** | Proportion of visits with **`follow_up_required = true`** per **`clinic_id`**, flagging clinics with disproportionately complex cases. | `clinic_visit` | per `clinic_id` per batch or per day: `visit_count`, `follow_up_count`, `follow_up_rate` |
+1. **Canonical Spark fact layer (for Phase 3 feature engineering flexibility):** Spark writes hourly fact hypertables at natural keys with explicit `batch_id` and `run_timestamp`.  
+2. **Derived analytics layer (for rubric-visible outputs):** TimescaleDB SQL views or continuous aggregates produce the six named analytics from the fact tables.
+
+#### Layer A: canonical Spark hourly facts (persisted)
+
+| Fact table | Natural key (plus `batch_id`) | Canonical measures (store additive/recomputable values first) |
+|---|---|---|
+| `feature_region_hourly` | `bucket_start`, `region` | `symptom_count`, `admission_count`, event-type counts, severity bucket counts, `duration_days_sum/count`, optional `temperature_sum/count` |
+| `feature_clinic_hourly` | `bucket_start`, `clinic_id` | `visit_count`, `follow_up_true_count`, `temperature_sum/count`, optional severity buckets and visit-type counts |
+| `feature_hospital_hourly` | `bucket_start`, `hospital_id` | `admission_count`, severity bucket counts, `temperature_sum/count`, `oxygen_sum/count`, `expected_los_sum/count` |
+| `feature_diagnosis_hourly` (long/sparse) | `bucket_start`, `clinic_id`, `diagnosis_code` | `diagnosis_visit_count`, optional `temperature_sum/count` |
+| `feature_symptom_hourly` (long/sparse) | `bucket_start`, `region`, `symptom_token` | `symptom_token_count` from exploded symptom arrays |
+
+**Design cautions (required):**
+
+- **Treat `available_beds` as a sampled gauge, not additive.** Per bucket/entity, store `available_beds_min`, `available_beds_avg`, `available_beds_last`, and `available_beds_sample_count` (not a raw sum as a core metric).
+- **Keep key-specific facts separate.** Do not force region-, clinic-, and hospital-grain facts into one giant sparse table.
+- **If a ratio is persisted, also persist its numerator and denominator** in a canonical fact table (e.g. `admission_count`, `symptom_count`).
+
+#### Layer B: derived analytics (official Phase 2 six outputs)
+
+| # | Derived analytic (served from facts) | Definition (business intent) | Suggested serving grain |
+|---|---|---|---|
+| 1 | **Regional disease severity trend** | Average/rolling severity + case count per `region` to surface worsening trends. | hourly and optional rolling windows |
+| 2 | **Hospital capacity pressure index** | Capacity stress signal per `hospital_id` combining admission rate and `available_beds_*` gauge stats. | hourly per hospital |
+| 3 | **Symptom-to-admission escalation rate** | Admissions-to-symptoms ratio per `region` and bucket as worsening indicator. | hourly per region |
+| 4 | **Event volume by type over time** | Throughput/activity mix per `event_type` across time. | hourly |
+| 5 | **Average patient temperature by diagnosis code** | Temperature trends by `diagnosis_code` (optionally by clinic/time). | diagnosis-level, optionally hourly |
+| 6 | **Follow-up requirement rate by clinic** | `follow_up_true_count / visit_count` per clinic, with both counts retained. | hourly or daily per clinic |
 
 **Hourly batch semantics (completeness and late data).** A batch job reads a **bounded snapshot** of Kafka (and/or a raw store) at run time—not a moving live stream—so define explicitly **which wall-clock hour** each run “closes” and how rows for `bucket_start` stay correct.
 
@@ -270,7 +292,7 @@ Six **distinct** analytics (exceeds rubric minimum); each becomes a **feature ta
 - **Optional hardening:** A short **lookback** (recompute the last *N* hours each run) plus **upsert** on the natural key `(bucket_start, dimension keys…)` updates aggregates when late or out-of-order events arrive; **append-only** without recompute yields **stale or duplicate** hourly rows.
 
 - **Writes:** JDBC `append` (or upsert where natural key exists) — document whether Phase 3 uses **latest batch only** or **full history** for training; if hourly buckets use upsert + lookback, say so in `spark/README.md` and the runbook.
-- **Comments** in code: one block per row in the table above (required by Phase 2 rubric).
+- **Comments** in code: one block per derived analytic above (required by Phase 2 rubric), plus brief notes describing the underlying fact table it comes from.
 
 ---
 
@@ -322,8 +344,8 @@ Startup/shutdown ordering: DB before Spark job; verification steps; troubleshoot
 
 ## Priority and Sequencing
 
-- **P0:** TimescaleDB deploy + `database-init.sql` with hypertables; `spark/etl.py` for all **six** analytics + JDBC write; `Dockerfile` + one successful Job run.
-- **P1:** `spark/README.md` with feature-table schemas, example `SELECT`s for each analytic, and clear **pressure_index** / **escalation_rate** formulas.
+- **P0:** TimescaleDB deploy + `database-init.sql` with canonical fact hypertables; `spark/etl.py` writes hourly facts via JDBC; `Dockerfile` + one successful Job run.
+- **P1:** Derived SQL layer for all **six** official analytics (views or continuous aggregates), plus `spark/README.md` with fact schemas, source mappings, and clear **pressure_index** / **escalation_rate** formulas.
 - **P2:** CronJob (or Tekton) schedule, `batch_id` semantics, structured `[ANALYTICS]` logging and end-of-run summary.
 - **P3:** `docs/phase2-stress-test.md` and `docs/phase2-runbook.md` (include Timescale-specific ops: chunk health, retention); top-level README Phase 2 section.
 - **P4:** Unit tests on pure transforms; continuous aggregates or compression policies if stress test shows read-path pain; Phase 3-facing “feature catalog” blurb in `architecture.md`.
