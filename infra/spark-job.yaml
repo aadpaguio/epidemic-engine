@@ -32,9 +32,8 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: spark-etl
-          # After first build/push from your namespace (team02 placeholder):
-          #   image-registry.openshift-image-registry.svc:5000/<namespace>/epidemic-spark-etl:latest
-          image: image-registry.openshift-image-registry.svc:5000/team02/epidemic-spark-etl:latest
+          # Must match `oc project -q` (ImageStream lives in that project).
+          image: image-registry.openshift-image-registry.svc:5000/ds551-2026-spring-a5f0d1/epidemic-spark-etl:latest
           imagePullPolicy: Always
           resources:
             requests:
