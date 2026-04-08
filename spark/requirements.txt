@@ -1,0 +1,2 @@
+# Pin with Dockerfile / cluster Java (17+). 3.5+ required for SQL max_by used in etl.py.
+pyspark==3.5.4

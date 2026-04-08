@@ -50,6 +50,10 @@ def _optional_env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
 
+def _env_truthy(name: str) -> bool:
+    return _optional_env(name, "").lower() in ("1", "true", "yes", "on")
+
+
 # Single schema tolerates all typed payloads (unknown fields ignored by from_json).
 PAYLOAD_SCHEMA = StructType(
     [
@@ -135,11 +139,13 @@ def classify_exception(exc: Exception) -> str:
 
 
 def build_spark(app_name: str = "epidemic-phase2-etl") -> SparkSession:
-    return (
-        SparkSession.builder.appName(app_name)
-        .config("spark.sql.session.timeZone", "UTC")
-        .getOrCreate()
+    builder = (
+        SparkSession.builder.appName(app_name).config("spark.sql.session.timeZone", "UTC")
     )
+    jdbc_jar = _optional_env("SPARK_JDBC_JAR")
+    if jdbc_jar:
+        builder = builder.config("spark.jars", jdbc_jar)
+    return builder.getOrCreate()
 
 
 def read_typed_kafka(
@@ -606,6 +612,36 @@ def write_jdbc_analytic(
     return rows_computed
 
 
+def log_db_write_skipped(
+    df: DataFrame,
+    table: str,
+    analytic_name: str,
+    run_id: str,
+    batch_id: str,
+) -> int:
+    """Materialize row count only; log db_write with write_mode dry_run (no JDBC)."""
+    t0 = time.perf_counter()
+    rows_computed = df.count()
+    duration_ms = int((time.perf_counter() - t0) * 1000)
+    log_analytics(
+        {
+            "task": "spark-etl",
+            "phase": "db_write",
+            "outcome": "valid",
+            "reason_code": None,
+            "run_id": run_id,
+            "batch_id": batch_id,
+            "analytic_name": analytic_name,
+            "target_table": table,
+            "rows_computed": rows_computed,
+            "rows_written": 0,
+            "write_mode": "dry_run",
+            "duration_ms": duration_ms,
+        }
+    )
+    return rows_computed
+
+
 def main() -> int:
     run_id = _optional_env("RUN_ID") or str(uuid.uuid4())
     batch_id = _optional_env("BATCH_ID") or run_id
@@ -618,9 +654,12 @@ def main() -> int:
         _optional_env("TOPIC_HOSPITAL", DEFAULT_HOSPITAL_TOPIC) or DEFAULT_HOSPITAL_TOPIC
     )
 
-    jdbc_url = _env("JDBC_URL")
-    jdbc_user = _env("JDBC_USER")
-    jdbc_password = _env("JDBC_PASSWORD")
+    skip_jdbc = _env_truthy("SKIP_JDBC_WRITE")
+    jdbc_url = jdbc_user = jdbc_password = ""
+    if not skip_jdbc:
+        jdbc_url = _env("JDBC_URL")
+        jdbc_user = _env("JDBC_USER")
+        jdbc_password = _env("JDBC_PASSWORD")
 
     started_wall = time.perf_counter()
     started_at = datetime.now(timezone.utc)
@@ -634,6 +673,7 @@ def main() -> int:
             "run_id": run_id,
             "batch_id": batch_id,
             "started_at": started_at.isoformat(),
+            "skip_jdbc_write": skip_jdbc,
         }
     )
 
@@ -711,30 +751,39 @@ def main() -> int:
         )
         clinic_hourly = build_feature_clinic_hourly(df_clinic, batch_id, run_ts)
 
-        rows_region = write_jdbc_analytic(
-            region_hourly,
-            "feature_region_hourly",
-            "feature_region_hourly",
-            jdbc_url,
-            jdbc_user,
-            jdbc_password,
-            run_id,
-            batch_id,
-        )
-        rows_clinic = write_jdbc_analytic(
-            clinic_hourly,
-            "feature_clinic_hourly",
-            "feature_clinic_hourly",
-            jdbc_url,
-            jdbc_user,
-            jdbc_password,
-            run_id,
-            batch_id,
-        )
+        if skip_jdbc:
+            rows_region = log_db_write_skipped(
+                region_hourly, "feature_region_hourly", "feature_region_hourly", run_id, batch_id
+            )
+            rows_clinic = log_db_write_skipped(
+                clinic_hourly, "feature_clinic_hourly", "feature_clinic_hourly", run_id, batch_id
+            )
+            rows_written_total = 0
+        else:
+            rows_region = write_jdbc_analytic(
+                region_hourly,
+                "feature_region_hourly",
+                "feature_region_hourly",
+                jdbc_url,
+                jdbc_user,
+                jdbc_password,
+                run_id,
+                batch_id,
+            )
+            rows_clinic = write_jdbc_analytic(
+                clinic_hourly,
+                "feature_clinic_hourly",
+                "feature_clinic_hourly",
+                jdbc_url,
+                jdbc_user,
+                jdbc_password,
+                run_id,
+                batch_id,
+            )
+            rows_written_total = rows_region + rows_clinic
 
         completed_at = datetime.now(timezone.utc)
         duration_ms = int((time.perf_counter() - started_wall) * 1000)
-        rows_written_total = rows_region + rows_clinic
 
         skip_pct = (
             (parse_stats["skipped_count"] / parse_stats["total_rows"] * 100.0)
@@ -760,6 +809,8 @@ def main() -> int:
                 "skipped_count": parse_stats["skipped_count"],
                 "error_count": 0,
                 "rows_written_total": rows_written_total,
+                "rows_computed_total": rows_region + rows_clinic,
+                "jdbc_skipped": skip_jdbc,
                 "started_at": started_at.isoformat(),
                 "completed_at": completed_at.isoformat(),
                 "duration_ms": duration_ms,
