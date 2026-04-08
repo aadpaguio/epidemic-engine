@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -81,6 +82,31 @@ PAYLOAD_SCHEMA = StructType(
     ]
 )
 
+# PERMISSIVE JSON: malformed documents populate this column (name must match option).
+_CORRUPT_RECORD = "_corrupt_record"
+PAYLOAD_SCHEMA_PERMISSIVE = StructType(
+    list(PAYLOAD_SCHEMA.fields) + [StructField(_CORRUPT_RECORD, StringType(), True)]
+)
+_JSON_READ_OPTIONS = {
+    "mode": "PERMISSIVE",
+    "columnNameOfCorruptRecord": _CORRUPT_RECORD,
+}
+
+
+def correlation_context() -> dict[str, Any]:
+    """Optional K8s / run correlation (Phase 2 observability)."""
+    ctx: dict[str, Any] = {}
+    pod = _optional_env("K8S_POD_NAME") or _optional_env("HOSTNAME")
+    if pod:
+        ctx["k8s_pod"] = pod
+    ns = _optional_env("K8S_NAMESPACE")
+    if ns:
+        ctx["k8s_namespace"] = ns
+    attempt = _optional_env("K8S_JOB_COMPLETION_INDEX") or _optional_env("CLOUD_RUN_TASK_INDEX")
+    if attempt:
+        ctx["attempt"] = attempt
+    return ctx
+
 
 def log_analytics(payload: dict[str, Any]) -> None:
     """Emit one [ANALYTICS] line; payload must include plan-required envelope keys."""
@@ -88,8 +114,24 @@ def log_analytics(payload: dict[str, Any]) -> None:
     for k in required:
         if k not in payload:
             raise ValueError(f"log_analytics missing key: {k}")
-    line = "[ANALYTICS] " + json.dumps(payload, default=str)
+    merged = {**correlation_context(), **payload}
+    line = "[ANALYTICS] " + json.dumps(merged, default=str)
     print(line, flush=True)
+
+
+def classify_exception(exc: Exception) -> str:
+    """Map common failures to Phase 2 reason_code taxonomy (best-effort)."""
+    msg = str(exc).lower()
+    combined = f"{type(exc).__name__} {msg}".lower()
+    if "kafka" in combined or "broker" in combined:
+        return "KAFKA_READ_FAILED"
+    if "connect" in combined and ("refused" in combined or "timed out" in combined):
+        return "KAFKA_CONNECT_FAILED"
+    if "jdbc" in combined or "postgresql" in combined or "psql" in combined:
+        if "connect" in combined or "refused" in combined or "timeout" in combined:
+            return "DB_CONNECT_FAILED"
+        return "DB_WRITE_FAILED"
+    return "error"
 
 
 def build_spark(app_name: str = "epidemic-phase2-etl") -> SparkSession:
@@ -119,15 +161,24 @@ def read_typed_kafka(
 
 
 def parse_kafka_to_payload(kafka_df: DataFrame) -> DataFrame:
+    """Parse JSON with PERMISSIVE mode; never fail the job on a single bad document."""
+    d = F.from_json(
+        F.col("value").cast("string"),
+        PAYLOAD_SCHEMA_PERMISSIVE,
+        _JSON_READ_OPTIONS,
+    )
     return kafka_df.select(
         "topic",
         "partition",
         "offset",
-        F.from_json(F.col("value").cast("string"), PAYLOAD_SCHEMA).alias("data"),
+        F.col("value").isNull().alias("kafka_value_is_null"),
+        d.alias("data"),
     ).select(
         "topic",
         "partition",
         "offset",
+        "kafka_value_is_null",
+        F.col(f"data.{_CORRUPT_RECORD}").isNotNull().alias("json_corrupt"),
         F.col("data.event_type").alias("event_type"),
         F.col("data.timestamp").alias("ts_raw"),
         F.col("data.region").alias("region"),
@@ -149,25 +200,177 @@ def parse_kafka_to_payload(kafka_df: DataFrame) -> DataFrame:
     )
 
 
-def with_event_time_and_bucket(parsed: DataFrame) -> DataFrame:
+def with_event_time_and_bucket(
+    parsed: DataFrame,
+    topic_symptom: str,
+    topic_clinic: str,
+    topic_hospital: str,
+) -> DataFrame:
     ts = F.to_timestamp(F.col("ts_raw"))
-    return (
+    ts_trim = F.trim(F.col("ts_raw").cast("string"))
+    has_ts_text = ts_trim.isNotNull() & (F.length(ts_trim) > 0)
+    time_parse_ok = ts.isNotNull() & F.date_trunc("hour", ts).isNotNull()
+
+    base = (
         parsed.withColumn("event_ts", ts)
         .withColumn("bucket_start", F.date_trunc("hour", ts))
-        .withColumn(
-            "parse_ok",
-            F.col("event_ts").isNotNull() & F.col("bucket_start").isNotNull(),
-        )
+        .withColumn("parse_ok", time_parse_ok)
     )
+
+    skip_reason = (
+        F.when(F.col("kafka_value_is_null"), F.lit("NULL_KAFKA_VALUE"))
+        .when(F.col("json_corrupt"), F.lit("JSON_PARSE"))
+        .when(~has_ts_text, F.lit("MISSING_FIELD:timestamp"))
+        .when(has_ts_text & ~F.col("parse_ok"), F.lit("BAD_TIMESTAMP"))
+        .when(
+            (F.col("topic") == F.lit(topic_symptom)) & F.col("parse_ok") & F.col("region").isNull(),
+            F.lit("MISSING_FIELD:region"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_clinic)) & F.col("parse_ok") & F.col("region").isNull(),
+            F.lit("MISSING_FIELD:region"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_clinic))
+            & F.col("parse_ok")
+            & F.col("clinic_id").isNull(),
+            F.lit("MISSING_FIELD:clinic_id"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_hospital)) & F.col("parse_ok") & F.col("region").isNull(),
+            F.lit("MISSING_FIELD:region"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_hospital))
+            & F.col("parse_ok")
+            & F.col("hospital_id").isNull(),
+            F.lit("MISSING_FIELD:hospital_id"),
+        )
+        .otherwise(F.lit("ACCEPT"))
+    )
+
+    return base.withColumn("skip_reason", skip_reason)
+
+
+def log_kafka_read_slices(
+    kafka_df: DataFrame,
+    run_id: str,
+    batch_id: str,
+    expected_topics: tuple[str, str, str],
+) -> tuple[dict[str, dict[str, Any]], int]:
+    """
+    Per-topic partition offset slices for [ANALYTICS] kafka_read lines.
+    Returns (rollup per topic that had rows, total_consumed).
+    Topics with zero messages produce no Kafka rows; we still emit one line each with EMPTY_TOPIC.
+    """
+    slices = (
+        kafka_df.groupBy("topic", "partition")
+        .agg(
+            F.min("offset").alias("start_offset"),
+            F.max("offset").alias("end_offset"),
+            F.count(F.lit(1)).alias("records_read"),
+        )
+        .collect()
+    )
+
+    by_topic: dict[str, dict[str, Any]] = {}
+    for row in slices:
+        t = row["topic"]
+        if t not in by_topic:
+            by_topic[t] = {"partitions": [], "records_read": 0}
+        by_topic[t]["partitions"].append(
+            {
+                "partition": int(row["partition"]),
+                "start_offset": int(row["start_offset"]),
+                "end_offset": int(row["end_offset"]),
+                "records_read": int(row["records_read"]),
+            }
+        )
+        by_topic[t]["records_read"] += int(row["records_read"])
+
+    total_consumed = sum(info["records_read"] for info in by_topic.values())
+
+    for t in expected_topics:
+        if t in by_topic:
+            info = by_topic[t]
+            payload: dict[str, Any] = {
+                "task": "spark-etl",
+                "phase": "kafka_read",
+                "outcome": "valid",
+                "reason_code": None,
+                "run_id": run_id,
+                "batch_id": batch_id,
+                "topic": t,
+                "records_read": info["records_read"],
+                "partition_count": len(info["partitions"]),
+                "partition_slices": info["partitions"],
+            }
+            if info["records_read"] == 0:
+                payload["reason_code"] = "EMPTY_TOPIC"
+            log_analytics(payload)
+        else:
+            log_analytics(
+                {
+                    "task": "spark-etl",
+                    "phase": "kafka_read",
+                    "outcome": "valid",
+                    "reason_code": "EMPTY_TOPIC",
+                    "run_id": run_id,
+                    "batch_id": batch_id,
+                    "topic": t,
+                    "records_read": 0,
+                    "partition_count": 0,
+                    "partition_slices": [],
+                }
+            )
+
+    return by_topic, total_consumed
+
+
+def collect_parse_stats(
+    bucketed: DataFrame,
+    expected_topics: tuple[str, str, str],
+) -> dict[str, Any]:
+    """Aggregation for skip_reason counts and event-time watermarks (bucketed must be cached)."""
+    total = bucketed.count()
+    agg_row = bucketed.groupBy("skip_reason").agg(F.count(F.lit(1)).alias("c")).collect()
+    by_reason = {r["skip_reason"]: int(r["c"]) for r in agg_row}
+    accept = int(by_reason.get("ACCEPT", 0))
+    skipped = total - accept
+
+    wm = (
+        bucketed.filter(F.col("skip_reason") == F.lit("ACCEPT"))
+        .groupBy("topic")
+        .agg(F.min("event_ts").alias("min_event_ts"), F.max("event_ts").alias("max_event_ts"))
+        .collect()
+    )
+    watermarks = {
+        r["topic"]: {
+            "min_event_ts": r["min_event_ts"],
+            "max_event_ts": r["max_event_ts"],
+        }
+        for r in wm
+    }
+
+    topic_counts = bucketed.groupBy("topic").agg(F.count(F.lit(1)).alias("n")).collect()
+    topic_n = {r["topic"]: int(r["n"]) for r in topic_counts}
+    empty_topics = [t for t in expected_topics if topic_n.get(t, 0) == 0]
+
+    return {
+        "total_rows": total,
+        "parse_ok_count": accept,
+        "skipped_count": skipped,
+        "skip_by_reason": by_reason,
+        "watermarks_by_topic": watermarks,
+        "empty_topics": empty_topics,
+    }
 
 
 def preliminary_symptoms(parsed_bucketed: DataFrame, topic_symptom: str) -> DataFrame:
     """Hour-bucketed symptom_report rows (valid parse + expected topic)."""
     return (
         parsed_bucketed.filter(
-            (F.col("topic") == F.lit(topic_symptom))
-            & F.col("parse_ok")
-            & F.col("region").isNotNull()
+            (F.col("topic") == F.lit(topic_symptom)) & (F.col("skip_reason") == F.lit("ACCEPT"))
         )
         .select(
             F.lit("symptom_report").alias("event_type"),
@@ -186,10 +389,7 @@ def preliminary_clinic_visits(parsed_bucketed: DataFrame, topic_clinic: str) -> 
     """Hour-bucketed clinic_visit rows."""
     return (
         parsed_bucketed.filter(
-            (F.col("topic") == F.lit(topic_clinic))
-            & F.col("parse_ok")
-            & F.col("region").isNotNull()
-            & F.col("clinic_id").isNotNull()
+            (F.col("topic") == F.lit(topic_clinic)) & (F.col("skip_reason") == F.lit("ACCEPT"))
         )
         .select(
             F.lit("clinic_visit").alias("event_type"),
@@ -212,10 +412,7 @@ def preliminary_hospital_admissions(
     """Hour-bucketed hospital_admission rows."""
     return (
         parsed_bucketed.filter(
-            (F.col("topic") == F.lit(topic_hospital))
-            & F.col("parse_ok")
-            & F.col("region").isNotNull()
-            & F.col("hospital_id").isNotNull()
+            (F.col("topic") == F.lit(topic_hospital)) & (F.col("skip_reason") == F.lit("ACCEPT"))
         )
         .select(
             F.lit("hospital_admission").alias("event_type"),
@@ -375,6 +572,40 @@ def write_jdbc(df: DataFrame, table: str, jdbc_url: str, user: str, password: st
     )
 
 
+def write_jdbc_analytic(
+    df: DataFrame,
+    table: str,
+    analytic_name: str,
+    jdbc_url: str,
+    user: str,
+    password: str,
+    run_id: str,
+    batch_id: str,
+) -> int:
+    """Append to JDBC and emit one [ANALYTICS] db_write line; returns rows written."""
+    t0 = time.perf_counter()
+    rows_computed = df.count()
+    write_jdbc(df, table, jdbc_url, user, password)
+    duration_ms = int((time.perf_counter() - t0) * 1000)
+    log_analytics(
+        {
+            "task": "spark-etl",
+            "phase": "db_write",
+            "outcome": "valid",
+            "reason_code": None,
+            "run_id": run_id,
+            "batch_id": batch_id,
+            "analytic_name": analytic_name,
+            "target_table": table,
+            "rows_computed": rows_computed,
+            "rows_written": rows_computed,
+            "write_mode": "append",
+            "duration_ms": duration_ms,
+        }
+    )
+    return rows_computed
+
+
 def main() -> int:
     run_id = _optional_env("RUN_ID") or str(uuid.uuid4())
     batch_id = _optional_env("BATCH_ID") or run_id
@@ -391,6 +622,9 @@ def main() -> int:
     jdbc_user = _env("JDBC_USER")
     jdbc_password = _env("JDBC_PASSWORD")
 
+    started_wall = time.perf_counter()
+    started_at = datetime.now(timezone.utc)
+
     log_analytics(
         {
             "task": "spark-etl",
@@ -399,17 +633,50 @@ def main() -> int:
             "reason_code": None,
             "run_id": run_id,
             "batch_id": batch_id,
+            "started_at": started_at.isoformat(),
         }
     )
 
     spark: SparkSession | None = None
+    parsed_bucketed: DataFrame | None = None
     try:
         spark = build_spark()
+        expected_topics = (topic_symptom, topic_clinic, topic_hospital)
+
         kafka_df = read_typed_kafka(
             spark, kafka_bootstrap, topic_symptom, topic_clinic, topic_hospital
         )
+        _, total_consumed = log_kafka_read_slices(
+            kafka_df, run_id, batch_id, expected_topics
+        )
+
         parsed = parse_kafka_to_payload(kafka_df)
-        parsed_bucketed = with_event_time_and_bucket(parsed)
+        parsed_bucketed = with_event_time_and_bucket(
+            parsed, topic_symptom, topic_clinic, topic_hospital
+        ).cache()
+        parse_stats = collect_parse_stats(parsed_bucketed, expected_topics)
+
+        log_analytics(
+            {
+                "task": "spark-etl",
+                "phase": "parse",
+                "outcome": "valid",
+                "reason_code": None,
+                "run_id": run_id,
+                "batch_id": batch_id,
+                "total_consumed": total_consumed,
+                "parse_ok_count": parse_stats["parse_ok_count"],
+                "skipped_count": parse_stats["skipped_count"],
+                "skip_by_reason": parse_stats["skip_by_reason"],
+                "watermarks_by_topic": {
+                    k: {
+                        "min_event_ts": v["min_event_ts"],
+                        "max_event_ts": v["max_event_ts"],
+                    }
+                    for k, v in parse_stats["watermarks_by_topic"].items()
+                },
+            }
+        )
 
         # --- Preliminaries: reuse these for all Layer A facts ---
         df_symptoms = preliminary_symptoms(parsed_bucketed, topic_symptom)
@@ -444,8 +711,40 @@ def main() -> int:
         )
         clinic_hourly = build_feature_clinic_hourly(df_clinic, batch_id, run_ts)
 
-        write_jdbc(region_hourly, "feature_region_hourly", jdbc_url, jdbc_user, jdbc_password)
-        write_jdbc(clinic_hourly, "feature_clinic_hourly", jdbc_url, jdbc_user, jdbc_password)
+        rows_region = write_jdbc_analytic(
+            region_hourly,
+            "feature_region_hourly",
+            "feature_region_hourly",
+            jdbc_url,
+            jdbc_user,
+            jdbc_password,
+            run_id,
+            batch_id,
+        )
+        rows_clinic = write_jdbc_analytic(
+            clinic_hourly,
+            "feature_clinic_hourly",
+            "feature_clinic_hourly",
+            jdbc_url,
+            jdbc_user,
+            jdbc_password,
+            run_id,
+            batch_id,
+        )
+
+        completed_at = datetime.now(timezone.utc)
+        duration_ms = int((time.perf_counter() - started_wall) * 1000)
+        rows_written_total = rows_region + rows_clinic
+
+        skip_pct = (
+            (parse_stats["skipped_count"] / parse_stats["total_rows"] * 100.0)
+            if parse_stats["total_rows"] > 0
+            else 0.0
+        )
+        degrade_pct = float(_optional_env("ANALYTICS_SKIP_DEGRADE_PCT", "25") or "25")
+        skip_degraded = parse_stats["total_rows"] > 0 and skip_pct > degrade_pct
+        empty_degraded = len(parse_stats["empty_topics"]) > 0
+        status = "degraded" if (skip_degraded or empty_degraded) else "healthy"
 
         log_analytics(
             {
@@ -455,25 +754,47 @@ def main() -> int:
                 "reason_code": None,
                 "run_id": run_id,
                 "batch_id": batch_id,
-                "status": "healthy",
-                "note": "feature_region_hourly and feature_clinic_hourly written",
+                "status": status,
+                "total_consumed": total_consumed,
+                "parse_ok_count": parse_stats["parse_ok_count"],
+                "skipped_count": parse_stats["skipped_count"],
+                "error_count": 0,
+                "rows_written_total": rows_written_total,
+                "started_at": started_at.isoformat(),
+                "completed_at": completed_at.isoformat(),
+                "duration_ms": duration_ms,
+                "empty_topics": parse_stats["empty_topics"],
+                "skip_rate_pct": round(skip_pct, 4),
             }
         )
         return 0
     except Exception as e:
+        rc = classify_exception(e)
+        completed_at = datetime.now(timezone.utc)
+        duration_ms = int((time.perf_counter() - started_wall) * 1000)
         log_analytics(
             {
                 "task": "spark-etl",
-                "phase": "error",
+                "phase": "summary",
                 "outcome": "error",
-                "reason_code": "error",
+                "reason_code": rc,
                 "run_id": run_id,
                 "batch_id": batch_id,
                 "reason_detail": str(e)[:500],
+                "status": "failed",
+                "error_count": 1,
+                "started_at": started_at.isoformat(),
+                "completed_at": completed_at.isoformat(),
+                "duration_ms": duration_ms,
             }
         )
         raise
     finally:
+        if parsed_bucketed is not None:
+            try:
+                parsed_bucketed.unpersist()
+            except Exception:
+                pass
         if spark is not None:
             spark.stop()
 
