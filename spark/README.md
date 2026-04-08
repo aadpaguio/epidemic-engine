@@ -67,28 +67,59 @@ python spark/etl.py
 
 So: same *logical* broker, but pick the **hostname that works from where the process runs** (laptop vs pod).
 
-## Docker image (team02 placeholder registry)
+## Docker image (OpenShift registry)
 
-The **`Dockerfile` uses UBI 9** (`registry.access.redhat.com/ubi9/python-311`) and **`microdnf`** for Java so OpenShift builds do not need **`deb.debian.org`** (often blocked from build pods).
+The **Dockerfile** uses **UBI 9** (`registry.access.redhat.com/ubi9/python-311`) and **`dnf`** for Java so cluster builds do not need **Debian mirrors** (`deb.debian.org`, often blocked from build pods).
 
-From the **repository root** (parent of `spark/`):
+### On-cluster build from Git (usually best)
+
+The cluster **clones** the repo—**no laptop tarball upload**. Requires the build pod to reach **GitHub** (or your Git host). The `Dockerfile` is at the repo root; `.dockerignore` keeps the clone/build context small.
+
+If you **already** have a **binary** `BuildConfig` named `epidemic-spark-etl`, delete it (and optionally the old `ImageStream`) before creating a Git-sourced one:
 
 ```bash
-# Log in to OpenShift internal registry first (see course credentials).
-export REGISTRY=<your-openshift-internal-registry-host>
-export NS=team02
-docker build -t "${REGISTRY}/${NS}/epidemic-spark-etl:latest" .
-
-docker push "${REGISTRY}/${NS}/epidemic-spark-etl:latest"
+oc delete buildconfig epidemic-spark-etl --ignore-not-found
+# Optional: only if you want a clean ImageStream — Job will break until a new build completes.
+# oc delete imagestream epidemic-spark-etl --ignore-not-found
 ```
 
-If **`ADD` of the PostgreSQL JDBC JAR** fails in-cluster (egress), build the image **on your laptop** (where HTTPS to `jdbc.postgresql.org` works) and **`docker push`** into the registry.
-
-On-cluster builds (example):
+Create the Git-sourced build (set **`BRANCH_OR_TAG`** to your working branch, e.g. `feat/docker-spark-k8s-job` or `main`):
 
 ```bash
-oc new-build --name=epidemic-spark-etl --binary --strategy=docker -n "${NS}"
-oc start-build epidemic-spark-etl --from-dir=. -n "${NS}" --follow
+BRANCH_OR_TAG=feat/docker-spark-k8s-job
+REPO=https://github.com/bu-cds-ds551-s26/epidemic-engine-2-smith-fergusonhull-nguyen-paguio.git
+
+oc new-build "${REPO}#${BRANCH_OR_TAG}" --name epidemic-spark-etl --strategy docker
+```
+
+Rebuild after you **push** commits to that branch:
+
+```bash
+oc start-build epidemic-spark-etl --follow
+```
+
+**Private repo:** create a **source** secret with Git credentials / deploy key and pass `--source-secret=<secret-name>` to `oc new-build` (see OpenShift docs “Creating a Secret for Git Authentication”).
+
+**If the cluster cannot reach GitHub**, Git-sourced builds will not work—use binary `--from-dir` or build locally.
+
+### Laptop: docker build + push
+
+From the **repository root** (only works if you have a **reachable** registry URL from your machine; many class clusters have **no public registry route**):
+
+```bash
+export REGISTRY=<external-registry-host-from-oc-or-course-docs>
+docker build -t "${REGISTRY}/$(oc project -q)/epidemic-spark-etl:latest" .
+oc registry login   # if supported
+docker push "${REGISTRY}/$(oc project -q)/epidemic-spark-etl:latest"
+```
+
+If **`ADD`** of the PostgreSQL JDBC JAR fails in-cluster (egress), building **on your laptop** avoids that.
+
+### On-cluster binary build (fallback)
+
+```bash
+oc new-build --name=epidemic-spark-etl --binary --strategy=docker
+oc start-build epidemic-spark-etl --from-dir=. --follow
 ```
 
 ## Kubernetes: one-shot Job (testing)

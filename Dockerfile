@@ -8,8 +8,9 @@ USER root
 
 ARG POSTGRES_JDBC_VERSION=42.7.3
 
-RUN microdnf install -y java-17-openjdk-headless \
-    && microdnf clean all \
+# Full UBI Python image has dnf; ubi-minimal uses microdnf instead.
+RUN dnf install -y java-17-openjdk-headless \
+    && dnf clean all \
     && rm -rf /var/cache/dnf /var/cache/yum
 
 RUN mkdir -p /app/jars

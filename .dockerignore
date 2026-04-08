@@ -1,0 +1,37 @@
+# Shrink `docker build` / `oc start-build --from-dir` context.
+# Dockerfile only COPYs spark/etl.py and spark/requirements.txt.
+
+# VCS and editor
+.git
+.gitignore
+.cursor
+.idea
+.vscode
+**/.DS_Store
+
+# Not used in the Spark image
+docs
+logs
+tekton
+infra
+**/*.md
+
+# Course / repo docs at root
+INSTRUCTIONS.md
+PHASE*-INSTRUCTIONS.md
+PHASE*-LAB*.md
+flaws_petite.md
+
+# Python cruft
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/*.egg-info
+.venv
+venv
+.env
+.env.*
+
+# If you add tests later
+tests
+**/conftest.py
