@@ -1,0 +1,426 @@
+# TimescaleDB on OpenShift/Kubernetes — StatefulSet + PVC + Services + init SQL ConfigMap.
+#
+# Apply (namespace-scoped):
+#   oc apply -n <namespace> -f infra/database-deployment.yaml
+#
+# Before production: replace placeholder credentials. Prefer creating the secret out-of-band and
+# deleting the Secret manifest below, e.g.:
+#   oc create secret generic epidemic-db-spark \
+#     --from-literal=username=spark_writer --from-literal=password='<strong-secret>'
+#
+# JDBC (matches infra/spark-job.yaml):
+#   jdbc:postgresql://timescaledb-service:5432/epidemic
+#
+# Init SQL runs only on first empty data volume (PostgreSQL docker-entrypoint-initdb.d).
+# To re-run DDL after a failed init, delete the PVC and pod (data loss).
+#
+# Image: pin matches TimescaleDB + PostgreSQL major used by your JDBC driver (test with Spark).
+#
+# Manifest syntax (no cluster login): ruby -ryaml -e "YAML.load_stream(File.read('infra/database-deployment.yaml'))"
+# oc/kubectl apply --dry-run=client may still contact the API server for schema discovery; use when logged in.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: epidemic-db-spark
+  labels:
+    app: timescaledb
+stringData:
+  # CHANGE_ME: align with oc create secret ... for non-dev clusters.
+  username: spark_writer
+  password: CHANGE_ME_BEFORE_DEPLOY
+type: Opaque
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: timescaledb-pvc
+  labels:
+    app: timescaledb
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: omit for cluster default; set explicitly if your cluster requires it
+---
+# Headless service — required StatefulSet network identity (timescaledb-0.timescaledb-headless).
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescaledb-headless
+  labels:
+    app: timescaledb
+spec:
+  clusterIP: None
+  selector:
+    app: timescaledb
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+# Cluster DNS for clients (Spark JDBC) — must match spark-job JDBC host.
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescaledb-service
+  labels:
+    app: timescaledb
+spec:
+  type: ClusterIP
+  selector:
+    app: timescaledb
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: timescaledb-init-sql
+  labels:
+    app: timescaledb
+data:
+  database-init.sql: |
+    -- TimescaleDB Phase 2 feature store: canonical hourly facts (Layer A) and derived analytics (Layer B).
+    -- Executed on first database init via /docker-entrypoint-initdb.d/ (see infra/database-deployment.yaml).
+    -- JDBC target: jdbc:postgresql://timescaledb-service:5432/epidemic
+    -- After editing this file, refresh the embedded ConfigMap in database-deployment.yaml, e.g.:
+    --   kubectl create configmap timescaledb-init-sql --from-file=database-init.sql=infra/database-init.sql -o yaml --dry-run=client
+    --   (merge the data: block into the ConfigMap document, preserving kind/metadata order.)
+
+    CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+    -- ---------------------------------------------------------------------------
+    -- Layer A: canonical Spark-written hourly fact hypertables
+    -- ---------------------------------------------------------------------------
+
+    CREATE TABLE IF NOT EXISTS feature_region_hourly (
+        bucket_start        TIMESTAMPTZ NOT NULL,
+        region              TEXT        NOT NULL,
+        batch_id            TEXT        NOT NULL,
+        run_timestamp       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        symptom_count       BIGINT      NOT NULL DEFAULT 0,
+        admission_count     BIGINT      NOT NULL DEFAULT 0,
+        clinic_visit_count  BIGINT      NOT NULL DEFAULT 0,
+        severity_sum        DOUBLE PRECISION,
+        severity_count      BIGINT      NOT NULL DEFAULT 0,
+        duration_days_sum   DOUBLE PRECISION,
+        duration_days_count BIGINT      NOT NULL DEFAULT 0,
+        temperature_sum     DOUBLE PRECISION,
+        temperature_count   BIGINT      NOT NULL DEFAULT 0,
+        available_beds_min  DOUBLE PRECISION,
+        available_beds_avg  DOUBLE PRECISION,
+        available_beds_last DOUBLE PRECISION,
+        available_beds_sample_count BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (bucket_start, region, batch_id)
+    );
+
+    COMMENT ON TABLE feature_region_hourly IS 'Hourly aggregates by region; Spark appends rows per batch_id.';
+    COMMENT ON COLUMN feature_region_hourly.bucket_start IS 'UTC start of hour bucket [bucket_start, bucket_start + 1h).';
+    COMMENT ON COLUMN feature_region_hourly.available_beds_min IS 'Gauge rollup: min sampled available_beds in bucket (not additive).';
+
+    CREATE TABLE IF NOT EXISTS feature_clinic_hourly (
+        bucket_start        TIMESTAMPTZ NOT NULL,
+        clinic_id           TEXT        NOT NULL,
+        batch_id            TEXT        NOT NULL,
+        run_timestamp       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        visit_count         BIGINT      NOT NULL DEFAULT 0,
+        follow_up_true_count BIGINT     NOT NULL DEFAULT 0,
+        temperature_sum     DOUBLE PRECISION,
+        temperature_count   BIGINT      NOT NULL DEFAULT 0,
+        available_beds_min  DOUBLE PRECISION,
+        available_beds_avg  DOUBLE PRECISION,
+        available_beds_last DOUBLE PRECISION,
+        available_beds_sample_count BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (bucket_start, clinic_id, batch_id)
+    );
+
+    COMMENT ON TABLE feature_clinic_hourly IS 'Hourly clinic visit facts for follow-up and temperature analytics.';
+
+    CREATE TABLE IF NOT EXISTS feature_hospital_hourly (
+        bucket_start        TIMESTAMPTZ NOT NULL,
+        hospital_id         TEXT        NOT NULL,
+        batch_id            TEXT        NOT NULL,
+        run_timestamp       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        admission_count     BIGINT      NOT NULL DEFAULT 0,
+        severity_sum        DOUBLE PRECISION,
+        severity_count      BIGINT      NOT NULL DEFAULT 0,
+        temperature_sum     DOUBLE PRECISION,
+        temperature_count   BIGINT      NOT NULL DEFAULT 0,
+        oxygen_sum          DOUBLE PRECISION,
+        oxygen_count        BIGINT      NOT NULL DEFAULT 0,
+        expected_los_sum    DOUBLE PRECISION,
+        expected_los_count  BIGINT      NOT NULL DEFAULT 0,
+        available_beds_min  DOUBLE PRECISION,
+        available_beds_avg  DOUBLE PRECISION,
+        available_beds_last DOUBLE PRECISION,
+        available_beds_sample_count BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (bucket_start, hospital_id, batch_id)
+    );
+
+    COMMENT ON TABLE feature_hospital_hourly IS 'Hourly hospital admission and capacity gauge facts.';
+
+    CREATE TABLE IF NOT EXISTS feature_diagnosis_hourly (
+        bucket_start        TIMESTAMPTZ NOT NULL,
+        clinic_id           TEXT        NOT NULL,
+        diagnosis_code      TEXT        NOT NULL,
+        batch_id            TEXT        NOT NULL,
+        run_timestamp       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        diagnosis_visit_count BIGINT    NOT NULL DEFAULT 0,
+        temperature_sum     DOUBLE PRECISION,
+        temperature_count   BIGINT      NOT NULL DEFAULT 0,
+        PRIMARY KEY (bucket_start, clinic_id, diagnosis_code, batch_id)
+    );
+
+    COMMENT ON TABLE feature_diagnosis_hourly IS 'Sparse diagnosis-level hourly facts for temperature-by-diagnosis analytics.';
+
+    CREATE TABLE IF NOT EXISTS feature_symptom_hourly (
+        bucket_start        TIMESTAMPTZ NOT NULL,
+        region              TEXT        NOT NULL,
+        symptom_token       TEXT        NOT NULL,
+        batch_id            TEXT        NOT NULL,
+        run_timestamp       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        symptom_token_count BIGINT      NOT NULL DEFAULT 0,
+        PRIMARY KEY (bucket_start, region, symptom_token, batch_id)
+    );
+
+    COMMENT ON TABLE feature_symptom_hourly IS 'Exploded symptom token counts per region and hour.';
+
+    -- Hypertables (time column bucket_start)
+    SELECT public.create_hypertable(
+        'feature_region_hourly',
+        'bucket_start',
+        if_not_exists => TRUE
+    );
+    SELECT public.create_hypertable(
+        'feature_clinic_hourly',
+        'bucket_start',
+        if_not_exists => TRUE
+    );
+    SELECT public.create_hypertable(
+        'feature_hospital_hourly',
+        'bucket_start',
+        if_not_exists => TRUE
+    );
+    SELECT public.create_hypertable(
+        'feature_diagnosis_hourly',
+        'bucket_start',
+        if_not_exists => TRUE
+    );
+    SELECT public.create_hypertable(
+        'feature_symptom_hourly',
+        'bucket_start',
+        if_not_exists => TRUE
+    );
+
+    -- Indexes for Phase 3 query patterns (composite + diagnosis)
+    CREATE INDEX IF NOT EXISTS idx_feature_region_hourly_region_bucket
+        ON feature_region_hourly (region, bucket_start DESC);
+    CREATE INDEX IF NOT EXISTS idx_feature_clinic_hourly_clinic_bucket
+        ON feature_clinic_hourly (clinic_id, bucket_start DESC);
+    CREATE INDEX IF NOT EXISTS idx_feature_hospital_hourly_hospital_bucket
+        ON feature_hospital_hourly (hospital_id, bucket_start DESC);
+    CREATE INDEX IF NOT EXISTS idx_feature_diagnosis_hourly_diagnosis
+        ON feature_diagnosis_hourly (diagnosis_code, bucket_start DESC);
+
+    -- ---------------------------------------------------------------------------
+    -- Layer B: six derived analytics (views on latest batch per bucket for serving;
+    -- Spark may append multiple batch_id rows — views filter to max(run_timestamp) per key.)
+    -- ---------------------------------------------------------------------------
+
+    -- Helper: latest batch row per natural key (excluding batch_id from key).
+    CREATE OR REPLACE VIEW v_latest_feature_region_hourly AS
+    SELECT DISTINCT ON (bucket_start, region)
+        *
+    FROM feature_region_hourly
+    ORDER BY bucket_start, region, run_timestamp DESC, batch_id DESC;
+
+    CREATE OR REPLACE VIEW v_latest_feature_clinic_hourly AS
+    SELECT DISTINCT ON (bucket_start, clinic_id)
+        *
+    FROM feature_clinic_hourly
+    ORDER BY bucket_start, clinic_id, run_timestamp DESC, batch_id DESC;
+
+    CREATE OR REPLACE VIEW v_latest_feature_hospital_hourly AS
+    SELECT DISTINCT ON (bucket_start, hospital_id)
+        *
+    FROM feature_hospital_hourly
+    ORDER BY bucket_start, hospital_id, run_timestamp DESC, batch_id DESC;
+
+    CREATE OR REPLACE VIEW v_latest_feature_diagnosis_hourly AS
+    SELECT DISTINCT ON (bucket_start, clinic_id, diagnosis_code)
+        *
+    FROM feature_diagnosis_hourly
+    ORDER BY bucket_start, clinic_id, diagnosis_code, run_timestamp DESC, batch_id DESC;
+
+    -- 1) Regional disease severity trend: average severity and case volume per region per hour.
+    CREATE OR REPLACE VIEW analytic_regional_disease_severity_trend AS
+    SELECT
+        bucket_start,
+        region,
+        CASE WHEN severity_count > 0 THEN severity_sum / severity_count END AS avg_severity,
+        (symptom_count + admission_count + clinic_visit_count) AS total_case_events,
+        symptom_count,
+        admission_count,
+        clinic_visit_count,
+        batch_id,
+        run_timestamp
+    FROM v_latest_feature_region_hourly;
+
+    COMMENT ON VIEW analytic_regional_disease_severity_trend IS
+        'Rubric analytic 1: regional severity trend — avg_severity from Layer A severity_sum/count plus event counts.';
+
+    -- 2) Hospital capacity pressure index: admissions relative to last sampled bed gauge (higher = more pressure).
+    CREATE OR REPLACE VIEW analytic_hospital_capacity_pressure AS
+    SELECT
+        bucket_start,
+        hospital_id,
+        admission_count,
+        available_beds_last,
+        CASE
+            WHEN available_beds_last IS NULL OR available_beds_last <= 0 THEN NULL
+            ELSE admission_count::double precision / available_beds_last
+        END AS capacity_pressure_index,
+        available_beds_min,
+        available_beds_avg,
+        available_beds_sample_count,
+        batch_id,
+        run_timestamp
+    FROM v_latest_feature_hospital_hourly;
+
+    COMMENT ON VIEW analytic_hospital_capacity_pressure IS
+        'Rubric analytic 2: pressure_index = admission_count / available_beds_last when beds_last > 0.';
+
+    -- 3) Symptom-to-admission escalation rate per region and hour.
+    CREATE OR REPLACE VIEW analytic_symptom_to_admission_escalation AS
+    SELECT
+        bucket_start,
+        region,
+        symptom_count,
+        admission_count,
+        CASE
+            WHEN symptom_count IS NULL OR symptom_count = 0 THEN NULL
+            ELSE admission_count::double precision / symptom_count
+        END AS escalation_rate,
+        batch_id,
+        run_timestamp
+    FROM v_latest_feature_region_hourly;
+
+    COMMENT ON VIEW analytic_symptom_to_admission_escalation IS
+        'Rubric analytic 3: escalation_rate = admission_count / NULLIF(symptom_count, 0).';
+
+    -- 4) Event volume by type over time (hourly), global rollup from region facts.
+    CREATE OR REPLACE VIEW analytic_event_volume_by_type AS
+    SELECT
+        bucket_start,
+        SUM(symptom_count) AS symptom_report_volume,
+        SUM(admission_count) AS hospital_admission_volume,
+        SUM(clinic_visit_count) AS clinic_visit_volume,
+        MAX(run_timestamp) AS as_of_run_timestamp
+    FROM v_latest_feature_region_hourly
+    GROUP BY bucket_start;
+
+    COMMENT ON VIEW analytic_event_volume_by_type IS
+        'Rubric analytic 4: hourly volumes by event family from region fact table.';
+
+    -- 5) Average patient temperature by diagnosis code (and clinic), latest batch per key.
+    CREATE OR REPLACE VIEW analytic_avg_temperature_by_diagnosis AS
+    SELECT
+        bucket_start,
+        clinic_id,
+        diagnosis_code,
+        diagnosis_visit_count,
+        CASE
+            WHEN temperature_count > 0 THEN temperature_sum / temperature_count
+        END AS avg_temperature_f,
+        batch_id,
+        run_timestamp
+    FROM v_latest_feature_diagnosis_hourly;
+
+    COMMENT ON VIEW analytic_avg_temperature_by_diagnosis IS
+        'Rubric analytic 5: avg temperature = temperature_sum / temperature_count per diagnosis bucket.';
+
+    -- 6) Follow-up requirement rate by clinic.
+    CREATE OR REPLACE VIEW analytic_follow_up_rate_by_clinic AS
+    SELECT
+        bucket_start,
+        clinic_id,
+        visit_count,
+        follow_up_true_count,
+        CASE
+            WHEN visit_count IS NULL OR visit_count = 0 THEN NULL
+            ELSE follow_up_true_count::double precision / visit_count
+        END AS follow_up_rate,
+        batch_id,
+        run_timestamp
+    FROM v_latest_feature_clinic_hourly;
+
+    COMMENT ON VIEW analytic_follow_up_rate_by_clinic IS
+        'Rubric analytic 6: follow_up_rate = follow_up_true_count / NULLIF(visit_count, 0).';
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: timescaledb
+  labels:
+    app: timescaledb
+spec:
+  serviceName: timescaledb-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: timescaledb
+  template:
+    metadata:
+      labels:
+        app: timescaledb
+    spec:
+      containers:
+        - name: timescaledb
+          # Pinned tag: update deliberately when upgrading PG/Timescale (verify Spark JDBC).
+          image: timescale/timescaledb:2.14.2-pg16
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: epidemic-db-spark
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: epidemic-db-spark
+                  key: password
+            - name: POSTGRES_DB
+              value: epidemic
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d/001-database-init.sql
+              subPath: database-init.sql
+              readOnly: true
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: timescaledb-pvc
+        - name: init-sql
+          configMap:
+            name: timescaledb-init-sql
+            items:
+              - key: database-init.sql
+                path: database-init.sql
