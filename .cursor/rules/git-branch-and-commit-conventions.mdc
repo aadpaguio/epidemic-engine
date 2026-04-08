@@ -1,0 +1,54 @@
+---
+description: Branch names and commit message format for this repo
+alwaysApply: true
+---
+
+# Git branch and commit conventions
+
+## Branches
+
+Use **lowercase ASCII**, **hyphens** between words, **no spaces**. Prefer a **type prefix** so intent is obvious at a glance.
+
+**Pattern:** `<type>/<short-description-kebab-case>`
+
+**Types (examples):** `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `infra`, `spark`, `db`, `tekton`
+
+**Examples**
+
+- `feat/spark-etl-region-facts`
+- `fix/jdbc-write-timezone`
+- `docs/phase2-readme-runbook`
+- `infra/timescale-hypertables`
+
+Avoid vague names (`update`, `wip`, `temp`). Keep the slug **short** (roughly 4–8 words max if needed).
+
+## Commit messages
+
+**First line (subject)**
+
+- Use the **imperative mood** (*Add*, *Fix*, *Update*, not *Added* / *Fixing*).
+- **~72 characters or fewer** when practical.
+- **No trailing period** on the subject line.
+- Optionally start with a **Conventional Commits**–style prefix for consistency with automation and history skimming:
+
+  `type(scope): imperative subject`
+
+  - **type:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `ci`, `build`, etc.
+  - **scope (optional):** area, e.g. `spark`, `etl`, `infra`, `tekton`, `db`
+
+**Examples (good subjects)**
+
+- `feat(spark): add hourly region and clinic fact writes`
+- `fix(etl): handle null follow_up_required in clinic parse`
+- `docs: document JDBC env vars for batch job`
+
+**Body (when the change needs context)**
+
+- Leave **one blank line** after the subject.
+- Use **complete sentences**, **correct grammar**, and **only what helps reviewers** (motivation, tradeoffs, breaking changes). Do not paste raw secrets or huge stack traces.
+
+**Footer (optional)**
+
+- Reference issues or tickets if the team uses them, e.g. `Closes #12`.
+
+When suggesting branch names or commit messages in this project, follow this rule unless the user specifies something else.
