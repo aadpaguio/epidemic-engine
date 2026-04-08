@@ -37,7 +37,7 @@ Phase 1 fills the **typed topics**; Phase 2 reads those same topics. Run in this
 
    Wait until the `PipelineRun` and both `TaskRun`s succeed (`oc get pipelinerun,taskrun -n "$NAMESPACE"`). Each run processes up to **`batch-size`** messages (default **100**) from validated → typed topics.
 
-4. **Align Kafka for Phase 2** — Set **`KAFKA_BOOTSTRAP` on the Spark Job** to the **same bootstrap the Phase 1 `PipelineRun` uses** (`tekton/pipelinerun.yaml` → `kafka-bootstrap`). Your Spark pod must resolve that hostname (in-cluster DNS). If `infra/spark-job.yaml` still says `kafka-team02:9092` but Phase 1 uses another service name, **change the Job env** to match.
+4. **Kafka bootstrap** — `infra/spark-job.yaml` uses the **same `KAFKA_BOOTSTRAP` as `tekton/pipelinerun.yaml`** (`kafka-bootstrap`). If your team changes the broker in the `PipelineRun`, update the Job env to match.
 
 5. **Build/push the Spark image** (see **Docker image** below), then:
 
@@ -70,7 +70,7 @@ python spark/etl.py
 
 **Yes, a local run can talk to the same bootstrap server**—as long as **your laptop can open a TCP route** to `KAFKA_BOOTSTRAP` (DNS resolves and port 9092, or TLS port if used, is reachable).
 
-- **In-cluster DNS** (e.g. `kafka-team02:9092`, `*.svc.cluster.local`) usually **does not resolve** from your Mac unless you use something that joins that network (VPN, `oc port-forward` to a Kafka **Route**/NodePort if exposed, or run the job **inside** OpenShift).
+- **In-cluster DNS** (e.g. `kafka.*.svc.cluster.local:9092`) usually **does not resolve** from your Mac unless you use something that joins that network (VPN, `oc port-forward` to a Kafka **Route**/NodePort if exposed, or run the job **inside** OpenShift).
 - **From inside the cluster** (Job/CronJob pod), use the bootstrap host your course/team docs give for **in-namespace** access.
 
 So: same *logical* broker, but pick the **hostname that works from where the process runs** (laptop vs pod).
