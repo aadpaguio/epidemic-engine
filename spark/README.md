@@ -69,7 +69,7 @@ So: same *logical* broker, but pick the **hostname that works from where the pro
 
 ## Docker image (team02 placeholder registry)
 
-The **`Dockerfile` uses UBI 9** (`registry.access.redhat.com/ubi9/python-311`) and **`microdnf`** for Java so OpenShift builds do not need **`deb.debian.org`** (often blocked from build pods).
+The **`Dockerfile` uses UBI 9** (`registry.access.redhat.com/ubi9/python-311`) and **`dnf`** for Java so OpenShift builds do not need **`deb.debian.org`** (often blocked from build pods).
 
 From the **repository root** (parent of `spark/`):
 
