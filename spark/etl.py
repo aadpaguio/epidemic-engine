@@ -135,11 +135,13 @@ def classify_exception(exc: Exception) -> str:
 
 
 def build_spark(app_name: str = "epidemic-phase2-etl") -> SparkSession:
-    return (
-        SparkSession.builder.appName(app_name)
-        .config("spark.sql.session.timeZone", "UTC")
-        .getOrCreate()
+    builder = (
+        SparkSession.builder.appName(app_name).config("spark.sql.session.timeZone", "UTC")
     )
+    jdbc_jar = _optional_env("SPARK_JDBC_JAR")
+    if jdbc_jar:
+        builder = builder.config("spark.jars", jdbc_jar)
+    return builder.getOrCreate()
 
 
 def read_typed_kafka(

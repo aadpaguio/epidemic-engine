@@ -1,0 +1,70 @@
+# One-shot Kubernetes Job — ideal for manual testing and grading demos.
+# For hourly runs aligned with closed clock hours, add a CronJob (see phase-2 plan).
+#
+# Prereqs:
+#   - Apply RBAC: oc apply -n <namespace> -f infra/spark-rbac.yaml
+#   - Create DB secret (example): oc create secret generic epidemic-db-spark \
+#       --from-literal=username=... --from-literal=password=...
+#   - Replace image and env values below for your namespace and services.
+#
+# Run once:
+#   oc apply -n <namespace> -f infra/spark-job.yaml
+#   oc logs -f job/epidemic-spark-etl
+#
+# Re-run after a completion (Jobs are immutable): delete the job first, e.g.
+#   oc delete job epidemic-spark-etl
+#
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: epidemic-spark-etl
+  labels:
+    app: epidemic-spark-etl
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: epidemic-spark-etl
+    spec:
+      serviceAccountName: spark-etl
+      restartPolicy: OnFailure
+      containers:
+        - name: spark-etl
+          # After first build/push from your namespace (team02 placeholder):
+          #   image-registry.openshift-image-registry.svc:5000/<namespace>/epidemic-spark-etl:latest
+          image: image-registry.openshift-image-registry.svc:5000/team02/epidemic-spark-etl:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2"
+          env:
+            - name: KAFKA_BOOTSTRAP
+              value: "kafka-team02:9092"
+            - name: TOPIC_SYMPTOM
+              value: "ds551-s26.team02.symptom_reports"
+            - name: TOPIC_CLINIC
+              value: "ds551-s26.team02.clinic_visits"
+            - name: TOPIC_HOSPITAL
+              value: "ds551-s26.team02.hospital_admissions"
+            - name: JDBC_URL
+              value: "jdbc:postgresql://timescaledb-service:5432/epidemic"
+            - name: JDBC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: epidemic-db-spark
+                  key: username
+            - name: JDBC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: epidemic-db-spark
+                  key: password
+            - name: K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace

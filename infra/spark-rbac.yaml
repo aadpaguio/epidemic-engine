@@ -1,0 +1,8 @@
+# ServiceAccount for the Spark ETL pod. Local-mode PySpark does not need extra K8s API
+# permissions; keep this SA for a stable identity and future RBAC if you move to cluster mode.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark-etl
+  labels:
+    app: epidemic-spark-etl
