@@ -68,3 +68,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # Optional: validate ETL without DB (remove when JDBC is ready).
+            # - name: SKIP_JDBC_WRITE
+            #   value: "true"

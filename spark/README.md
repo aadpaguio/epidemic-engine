@@ -14,8 +14,31 @@
 | `BATCH_ID` / `RUN_ID` | no | Run metadata stored on fact rows |
 | `SPARK_JDBC_JAR` | no | Set in Docker image to PostgreSQL JDBC path |
 | `ANALYTICS_SKIP_DEGRADE_PCT` | no | Skip-rate threshold for `degraded` summary (default `25`) |
+| `SKIP_JDBC_WRITE` | no | If `1` / `true` / `yes` / `on`, run Kafka → parse → aggregates and logs **without** `JDBC_*` or any database write (`write_mode: dry_run` on fact tables) |
 
 Structured logs use prefix `[ANALYTICS]` (see Phase 2 plan).
+
+## Test without a database
+
+If TimescaleDB is not ready yet, you can still validate reads, parsing, hourly facts, and logging:
+
+```bash
+export KAFKA_BOOTSTRAP=<reachable-broker-host:9092>
+export SKIP_JDBC_WRITE=true
+# Do not set JDBC_* when skipping — they are not required.
+python spark/etl.py
+```
+
+`rows_written_total` in the final summary will be `0`; `rows_computed_total` shows how many fact rows would have been appended.
+
+## Local machine vs cluster Kafka
+
+**Yes, a local run can talk to the same bootstrap server**—as long as **your laptop can open a TCP route** to `KAFKA_BOOTSTRAP` (DNS resolves and port 9092, or TLS port if used, is reachable).
+
+- **In-cluster DNS** (e.g. `kafka-team02:9092`, `*.svc.cluster.local`) usually **does not resolve** from your Mac unless you use something that joins that network (VPN, `oc port-forward` to a Kafka **Route**/NodePort if exposed, or run the job **inside** OpenShift).
+- **From inside the cluster** (Job/CronJob pod), use the bootstrap host your course/team docs give for **in-namespace** access.
+
+So: same *logical* broker, but pick the **hostname that works from where the process runs** (laptop vs pod).
 
 ## Docker image (team02 placeholder registry)
 
