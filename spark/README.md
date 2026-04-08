@@ -18,6 +18,41 @@
 
 Structured logs use prefix `[ANALYTICS]` (see Phase 2 plan).
 
+## End-to-end on OpenShift: Phase 1 → Spark ETL
+
+Phase 1 fills the **typed topics**; Phase 2 reads those same topics. Run in this order:
+
+1. **`oc login`** and **`oc project <your-namespace>`** (same project where Kafka and Tekton run).
+
+2. **Raw input** — The generator (or replay) must be writing to **`ds551-s26.team02.raw`** so Phase 1 has something to consume.
+
+3. **Deploy and run Phase 1** (from repo root; see **`tekton/README.md`**):
+
+   ```bash
+   export NAMESPACE=<your-namespace>
+   oc apply -f tekton/tasks.yaml -n "$NAMESPACE"
+   oc apply -f tekton/pipeline.yaml -n "$NAMESPACE"
+   oc create -f tekton/pipelinerun.yaml -n "$NAMESPACE"
+   ```
+
+   Wait until the `PipelineRun` and both `TaskRun`s succeed (`oc get pipelinerun,taskrun -n "$NAMESPACE"`). Each run processes up to **`batch-size`** messages (default **100**) from validated → typed topics.
+
+4. **Align Kafka for Phase 2** — Set **`KAFKA_BOOTSTRAP` on the Spark Job** to the **same bootstrap the Phase 1 `PipelineRun` uses** (`tekton/pipelinerun.yaml` → `kafka-bootstrap`). Your Spark pod must resolve that hostname (in-cluster DNS). If `infra/spark-job.yaml` still says `kafka-team02:9092` but Phase 1 uses another service name, **change the Job env** to match.
+
+5. **Build/push the Spark image** (see **Docker image** below), then:
+
+   ```bash
+   oc apply -f infra/spark-rbac.yaml -n "$NAMESPACE"
+   ```
+
+6. **Database optional for first test** — Uncomment **`SKIP_JDBC_WRITE`** in `infra/spark-job.yaml` (or patch the Job) so you do not need the DB secret yet. When the DB exists, remove `SKIP_JDBC_WRITE` and create the **`epidemic-db-spark`** secret expected by the manifest.
+
+7. **Run the Spark Job** — `oc apply -f infra/spark-job.yaml -n "$NAMESPACE"` then **`oc logs -f job/epidemic-spark-etl -n "$NAMESPACE"`**. You should see **`[ANALYTICS]`** lines (`kafka_read`, `parse`, `db_write`, `summary`). Topic env vars default to **`ds551-s26.team02.*`** and should match Phase 1 output topic params.
+
+8. **Re-run** — Delete the Job before re-applying: **`oc delete job epidemic-spark-etl -n "$NAMESPACE"`**. Run another **`oc create -f tekton/pipelinerun.yaml`** to push more batches through Phase 1, then run the Spark Job again.
+
+**Note:** Spark batch reads **`earliest` → `latest`**, so each ETL run scans the full current topic; new Phase 1 runs append messages for the next ETL pass.
+
 ## Test without a database
 
 If TimescaleDB is not ready yet, you can still validate reads, parsing, hourly facts, and logging:
