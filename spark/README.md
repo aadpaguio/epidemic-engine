@@ -83,22 +83,42 @@ oc delete buildconfig epidemic-spark-etl --ignore-not-found
 # oc delete imagestream epidemic-spark-etl --ignore-not-found
 ```
 
-Create the Git-sourced build (set **`BRANCH_OR_TAG`** to your working branch, e.g. `feat/docker-spark-k8s-job` or `main`):
+**Branch:** always build from **`main`** — merge feature branches there before you rely on cluster builds.
 
 ```bash
-BRANCH_OR_TAG=feat/docker-spark-k8s-job
 REPO=https://github.com/bu-cds-ds551-s26/epidemic-engine-2-smith-fergusonhull-nguyen-paguio.git
-
-oc new-build "${REPO}#${BRANCH_OR_TAG}" --name epidemic-spark-etl --strategy docker
 ```
 
-Rebuild after you **push** commits to that branch:
+**Private GitHub repo** (typical for course teams) — **HTTPS + PAT:**
+
+1. Create a GitHub **personal access token** with **read** access to this repo (never commit the token; store only in OpenShift).
+
+2. Create a **basic-auth** secret and allow the **`builder`** account to use it for clones:
+
+```bash
+oc create secret generic git-github-epidemic \
+  --from-literal=username=git \
+  --from-literal=password=<GITHUB_PAT> \
+  --type=kubernetes.io/basic-auth
+
+oc secrets link builder git-github-epidemic
+```
+
+3. Create the `BuildConfig`:
+
+```bash
+oc new-build "${REPO}#main" --name epidemic-spark-etl --strategy docker --source-secret=git-github-epidemic
+```
+
+**Public repo:** same `oc new-build` line **without** `--source-secret=...`.
+
+Rebuild after you **push** to **`main`**:
 
 ```bash
 oc start-build epidemic-spark-etl --follow
 ```
 
-**Private repo:** create a **source** secret with Git credentials / deploy key and pass `--source-secret=<secret-name>` to `oc new-build` (see OpenShift docs “Creating a Secret for Git Authentication”).
+SSH deploy keys are also supported (`kubernetes.io/ssh-auth` secret + `--source-secret`); see OpenShift **“Creating a Secret for Git Authentication”**.
 
 **If the cluster cannot reach GitHub**, Git-sourced builds will not work—use binary `--from-dir` or build locally.
 
