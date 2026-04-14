@@ -566,6 +566,53 @@ def build_feature_clinic_hourly(
     )
 
 
+def build_feature_hospital_hourly(
+    df_hospital: DataFrame,
+    batch_id: str,
+    run_ts: datetime,
+) -> DataFrame:
+    """Natural key: (bucket_start, hospital_id)."""
+    beds_last = F.expr("max_by(available_beds, cast(event_ts as timestamp))")
+    agg = df_hospital.groupBy("bucket_start", "hospital_id").agg(
+        F.count(F.lit(1)).alias("admission_count"),
+        F.sum("severity").alias("severity_sum"),
+        F.count(F.col("severity")).alias("severity_count"),
+        F.sum("temperature_f").alias("temperature_sum"),
+        F.count(F.col("temperature_f")).alias("temperature_count"),
+        F.sum("oxygen_level").alias("oxygen_sum"),
+        F.count(F.col("oxygen_level")).alias("oxygen_count"),
+        F.sum("expected_los_days").alias("expected_los_sum"),
+        F.count(F.col("expected_los_days")).alias("expected_los_count"),
+        F.min("available_beds").alias("available_beds_min"),
+        F.avg("available_beds").alias("available_beds_avg"),
+        beds_last.alias("available_beds_last"),
+        F.sum(F.when(F.col("available_beds").isNotNull(), 1).otherwise(0)).alias(
+            "available_beds_sample_count"
+        ),
+    )
+    return agg.withColumn("batch_id", F.lit(batch_id)).withColumn(
+        "run_timestamp", F.lit(run_ts).cast(TimestampType())
+    ).select(
+        "bucket_start",
+        "hospital_id",
+        "admission_count",
+        "severity_sum",
+        "severity_count",
+        "temperature_sum",
+        "temperature_count",
+        "oxygen_sum",
+        "oxygen_count",
+        "expected_los_sum",
+        "expected_los_count",
+        "available_beds_min",
+        "available_beds_avg",
+        "available_beds_last",
+        "available_beds_sample_count",
+        "batch_id",
+        "run_timestamp",
+    )
+
+
 def write_jdbc(df: DataFrame, table: str, jdbc_url: str, user: str, password: str) -> None:
     (
         df.write.format("jdbc")
@@ -724,15 +771,6 @@ def main() -> int:
         df_hospital = preliminary_hospital_admissions(parsed_bucketed, topic_hospital)
 
         # ------------------------------------------------------------------
-        # feature_hospital_hourly  (TODO)
-        #   Source: preliminary_hospital_admissions (df_hospital).
-        #   groupBy(bucket_start, hospital_id) → admission_count; severity_sum/count or
-        #   severity histogram; temperature_sum/count; oxygen_sum/count;
-        #   expected_los_sum/count; available_beds min/avg/last/sample_count (gauge).
-        #   Add batch_id, run_timestamp; JDBC append to feature_hospital_hourly.
-        # ------------------------------------------------------------------
-
-        # ------------------------------------------------------------------
         # feature_diagnosis_hourly  (TODO)
         #   Source: df_clinic (drop rows with null diagnosis_code if needed).
         #   groupBy(bucket_start, clinic_id, diagnosis_code) → diagnosis_visit_count;
@@ -750,6 +788,7 @@ def main() -> int:
             df_symptoms, df_clinic, df_hospital, batch_id, run_ts
         )
         clinic_hourly = build_feature_clinic_hourly(df_clinic, batch_id, run_ts)
+        hospital_hourly = build_feature_hospital_hourly(df_hospital, batch_id, run_ts)
 
         if skip_jdbc:
             rows_region = log_db_write_skipped(
@@ -757,6 +796,9 @@ def main() -> int:
             )
             rows_clinic = log_db_write_skipped(
                 clinic_hourly, "feature_clinic_hourly", "feature_clinic_hourly", run_id, batch_id
+            )
+            rows_hospital = log_db_write_skipped(
+                hospital_hourly, "feature_hospital_hourly", "feature_hospital_hourly", run_id, batch_id
             )
             rows_written_total = 0
         else:
@@ -780,7 +822,17 @@ def main() -> int:
                 run_id,
                 batch_id,
             )
-            rows_written_total = rows_region + rows_clinic
+            rows_hospital = write_jdbc_analytic(
+                hospital_hourly,
+                "feature_hospital_hourly",
+                "feature_hospital_hourly",
+                jdbc_url,
+                jdbc_user,
+                jdbc_password,
+                run_id,
+                batch_id,
+            )
+            rows_written_total = rows_region + rows_clinic + rows_hospital
 
         completed_at = datetime.now(timezone.utc)
         duration_ms = int((time.perf_counter() - started_wall) * 1000)
@@ -809,7 +861,7 @@ def main() -> int:
                 "skipped_count": parse_stats["skipped_count"],
                 "error_count": 0,
                 "rows_written_total": rows_written_total,
-                "rows_computed_total": rows_region + rows_clinic,
+                "rows_computed_total": rows_region + rows_clinic + rows_hospital,
                 "jdbc_skipped": skip_jdbc,
                 "started_at": started_at.isoformat(),
                 "completed_at": completed_at.isoformat(),
