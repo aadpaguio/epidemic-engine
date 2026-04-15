@@ -657,8 +657,8 @@ def build_feature_diagnosis_hourly(
         F.count(F.lit(1)).alias("diagnosis_visit_count"),
         F.sum(F.when(F.col("follow_up_required"), 1).otherwise(0)).alias(
             "follow_up_true_count" ),
-        F.nunique("clinic_id").alias("clinic_id_unique"),
-        F.nunique("visit_type").alias("visit_type_unique"),
+        F.countDistinct("clinic_id").alias("clinic_id_unique"),
+        F.countDistinct("visit_type").alias("visit_type_unique"),
         F.avg("temperature_f").alias("temperature_avg"),
         F.var("temperature_f").alias("temperature_var"),
         F.count(F.col("temperature_f")).alias("temperature_count")
@@ -973,6 +973,10 @@ def main() -> int:
             )
             rows_written_total = rows_region + rows_clinic + rows_hospital + rows_diagnosis + rows_symptom
 
+        rows_computed_total = (
+            rows_region + rows_clinic + rows_hospital + rows_diagnosis + rows_symptom
+        )
+
         completed_at = datetime.now(timezone.utc)
         duration_ms = int((time.perf_counter() - started_wall) * 1000)
 
@@ -1000,7 +1004,7 @@ def main() -> int:
                 "skipped_count": parse_stats["skipped_count"],
                 "error_count": 0,
                 "rows_written_total": rows_written_total,
-                "rows_computed_total": rows_written_total, # should be different?
+                "rows_computed_total": rows_computed_total,
                 "jdbc_skipped": skip_jdbc,
                 "started_at": started_at.isoformat(),
                 "completed_at": completed_at.isoformat(),
