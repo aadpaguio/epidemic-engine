@@ -188,18 +188,25 @@ def parse_kafka_to_payload(kafka_df: DataFrame) -> DataFrame:
         F.col("data.event_type").alias("event_type"),
         F.col("data.timestamp").alias("ts_raw"),
         F.col("data.region").alias("region"),
+        F.col("data.age").cast("int").alias("age"),
         F.col("data.symptoms").alias("symptoms"),
         F.col("data.severity").cast("int").alias("severity"),
         F.col("data.duration_days").cast("double").alias("duration_days"),
+        F.col("data.reported_via").alias("reported_via"),
+        # visit_id
         F.col("data.clinic_id").alias("clinic_id"),
         F.col("data.visit_type").alias("visit_type"),
+        F.col("data.primary_complaint").alias("primary_complaint"),
         F.col("data.temperature_f").cast("double").alias("temperature_f"),
         F.col("data.diagnosis_code").alias("diagnosis_code"),
+        F.col("data.prescribed_medication").alias("prescribed_medication"),
         F.when(F.lower(F.col("data.follow_up_required").cast("string")) == "true", F.lit(True))
         .when(F.lower(F.col("data.follow_up_required").cast("string")) == "false", F.lit(False))
         .otherwise(F.col("data.follow_up_required").cast("boolean"))
         .alias("follow_up_required"),
+        # admission_id
         F.col("data.hospital_id").alias("hospital_id"),
+        F.col("data.admission_reason").alias("admission_reason"),
         F.col("data.oxygen_level").cast("double").alias("oxygen_level"),
         F.col("data.expected_los_days").cast("double").alias("expected_los_days"),
         F.col("data.available_beds").cast("double").alias("available_beds"),
@@ -383,10 +390,12 @@ def preliminary_symptoms(parsed_bucketed: DataFrame, topic_symptom: str) -> Data
             "bucket_start",
             "region",
             "event_ts",
+            "age",
+            # symptoms (list) TODO add count of symptoms?
             "severity",
             "duration_days",
-            F.lit(None).cast("double").alias("temperature_f"),
-            "available_beds",
+            "reported_via",
+            "available_beds"
         )
     )
 
@@ -404,10 +413,12 @@ def preliminary_clinic_visits(parsed_bucketed: DataFrame, topic_clinic: str) -> 
             "clinic_id",
             "event_ts",
             "visit_type",
+            "primary_complaint",
             "temperature_f",
-            "follow_up_required",
-            "available_beds",
             "diagnosis_code",
+            "prescribed_medication",
+            "follow_up_required",
+            "available_beds"
         )
     )
 
@@ -426,11 +437,12 @@ def preliminary_hospital_admissions(
             "region",
             "hospital_id",
             "event_ts",
+            "admission_reason",
             "severity",
             "temperature_f",
             "oxygen_level",
             "expected_los_days",
-            "available_beds",
+            "available_beds"
         )
     )
 
@@ -453,8 +465,8 @@ def build_feature_region_hourly(
         "event_ts",
         "severity",
         "duration_days",
-        "temperature_f",
-        "available_beds",
+        F.lit(None).cast("double").alias("temperature_f"),
+        "available_beds"
     )
     cli = df_clinic.select(
         "bucket_start",
@@ -464,7 +476,7 @@ def build_feature_region_hourly(
         F.lit(None).cast("int").alias("severity"),
         F.lit(None).cast("double").alias("duration_days"),
         "temperature_f",
-        "available_beds",
+        "available_beds"
     )
     hos = df_hospital.select(
         "bucket_start",
@@ -472,9 +484,10 @@ def build_feature_region_hourly(
         "event_type",
         "event_ts",
         "severity",
-        "duration_days",
-        F.lit(None).cast("double").alias("temperature_f"),
-        "available_beds",
+        # topic has field [expected_los_days], not quite comparable
+        F.lit(None).cast("double").alias("duration_days"), 
+        "temperature_f",
+        "available_beds"
     )
     base = sym.unionByName(cli).unionByName(hos)
 
@@ -535,11 +548,12 @@ def build_feature_clinic_hourly(
     """Natural key: (bucket_start, clinic_id)."""
     beds_last = F.expr("max_by(available_beds, cast(event_ts as timestamp))")
     agg = df_clinic.groupBy("bucket_start", "clinic_id").agg(
+        F.max("region").alias("region"),
         F.count(F.lit(1)).alias("visit_count"),
         F.sum(F.when(F.col("follow_up_required"), 1).otherwise(0)).alias(
-            "follow_up_true_count"
-        ),
-        F.sum("temperature_f").alias("temperature_sum"),
+            "follow_up_true_count" ),
+        F.avg("temperature_f").alias("temperature_avg"),
+        F.var("temperature_f").alias("temperature_var"),
         F.count(F.col("temperature_f")).alias("temperature_count"),
         F.min("available_beds").alias("available_beds_min"),
         F.avg("available_beds").alias("available_beds_avg"),
@@ -553,9 +567,11 @@ def build_feature_clinic_hourly(
     ).select(
         "bucket_start",
         "clinic_id",
+        "region",
         "visit_count",
         "follow_up_true_count",
-        "temperature_sum",
+        "temperature_avg",
+        "temperature_var",
         "temperature_count",
         "available_beds_min",
         "available_beds_avg",
@@ -574,12 +590,17 @@ def build_feature_hospital_hourly(
     """Natural key: (bucket_start, hospital_id)."""
     beds_last = F.expr("max_by(available_beds, cast(event_ts as timestamp))")
     agg = df_hospital.groupBy("bucket_start", "hospital_id").agg(
+        F.max("region").alias("region"),
         F.count(F.lit(1)).alias("admission_count"),
         F.sum("severity").alias("severity_sum"),
+        F.avg("severity").alias("severity_avg"),
+        F.var("severity").alias("severity_var"),
         F.count(F.col("severity")).alias("severity_count"),
-        F.sum("temperature_f").alias("temperature_sum"),
+        F.avg("temperature_f").alias("temperature_avg"),
+        F.var("temperature_f").alias("temperature_var"),
         F.count(F.col("temperature_f")).alias("temperature_count"),
-        F.sum("oxygen_level").alias("oxygen_sum"),
+        F.avg("oxygen_level").alias("oxygen_avg"),
+        F.var("oxygen_level").alias("oxygen_var"),
         F.count(F.col("oxygen_level")).alias("oxygen_count"),
         F.sum("expected_los_days").alias("expected_los_sum"),
         F.count(F.col("expected_los_days")).alias("expected_los_count"),
@@ -595,12 +616,17 @@ def build_feature_hospital_hourly(
     ).select(
         "bucket_start",
         "hospital_id",
+        "region",
         "admission_count",
         "severity_sum",
+        "severity_avg",
+        "severity_var",
         "severity_count",
-        "temperature_sum",
+        "temperature_avg",
+        "temperature_var",
         "temperature_count",
-        "oxygen_sum",
+        "oxygen_avg",
+        "oxygen_var",
         "oxygen_count",
         "expected_los_sum",
         "expected_los_count",
@@ -611,6 +637,77 @@ def build_feature_hospital_hourly(
         "batch_id",
         "run_timestamp",
     )
+
+def build_feature_diagnosis_hourly(
+    df_clinic: DataFrame,
+    batch_id: str,
+    run_ts: datetime,
+) -> DataFrame:
+    """Natural key: (bucket_start, region, diagnosis_code)."""
+    agg = df_clinic.groupBy("bucket_start", "region", "diagnosis_code").agg(
+        F.count(F.lit(1)).alias("diagnosis_visit_count"),
+        F.sum(F.when(F.col("follow_up_required"), 1).otherwise(0)).alias(
+            "follow_up_true_count" ),
+        F.nunique("clinic_id").alias("clinic_id_unique"),
+        F.nunique("visit_type").alias("visit_type_unique"),
+        F.avg("temperature_f").alias("temperature_avg"),
+        F.var("temperature_f").alias("temperature_var"),
+        F.count(F.col("temperature_f")).alias("temperature_count")
+    )
+    return agg.withColumn("batch_id", F.lit(batch_id)).withColumn(
+        "run_timestamp", F.lit(run_ts).cast(TimestampType())
+    ).select(
+        "bucket_start",
+        "region",
+        "diagnosis_code",
+        "clinic_id_unique",
+        "diagnosis_visit_count",
+        "visit_type_unique",
+        "temperature_avg",
+        "temperature_var",
+        "temperature_count",
+        "follow_up_true_count"
+    )
+
+
+def build_feature_symptom_hourly(
+    df_symptoms: DataFrame,
+    batch_id: str,
+    run_ts: datetime,    
+) -> DataFrame:
+    """Natural key: (bucket_start, region, symptom_token)."""
+    agg = df_symptoms.groupBy("bucket_start", "region", "symptom_token").agg(
+        F.count(F.lit(1)).alias("symptom_visit_count"),
+        F.avg("age").alias("age_avg"),
+        F.var("age").alias("age_var"),
+        F.count(F.col("age")).alias("age_count"),
+        F.sum("severity").alias("severity_sum"),
+        F.avg("severity").alias("severity_avg"),
+        F.var("severity").alias("severity_var"),
+        F.count(F.col("severity")).alias("severity_count"),
+        F.avg("duration_days").alias("duration_days_avg"),
+        F.var("duration_days").alias("duration_days_var"),
+        F.count(F.col("duration_days")).alias("duration_days_count")
+    )
+    return agg.withColumn("batch_id", F.lit(batch_id)).withColumn(
+        "run_timestamp", F.lit(run_ts).cast(TimestampType())
+    ).select(
+        "bucket_start",
+        "region",
+        "symptom_token",
+        "symptom_visit_count",
+        "age_avg",
+        "age_var",
+        "age_count",
+        "severity_sum",
+        "severity_avg",
+        "severity_var",
+        "severity_count",
+        "duration_days_avg",
+        "duration_days_var",
+        "duration_days_count"
+    )
+    
 
 
 def write_jdbc(df: DataFrame, table: str, jdbc_url: str, user: str, password: str) -> None:
@@ -770,6 +867,9 @@ def main() -> int:
         df_clinic = preliminary_clinic_visits(parsed_bucketed, topic_clinic)
         df_hospital = preliminary_hospital_admissions(parsed_bucketed, topic_hospital)
 
+        exploded_symptoms = df_symptoms.withColumn("symptom_token", F.explode("symptoms")).filter(
+            F.col("symptom_token").isNotNull() & (F.length(F.col("symptom_token")) > 0))
+
         # ------------------------------------------------------------------
         # feature_diagnosis_hourly  (TODO)
         #   Source: df_clinic (drop rows with null diagnosis_code if needed).
@@ -789,6 +889,10 @@ def main() -> int:
         )
         clinic_hourly = build_feature_clinic_hourly(df_clinic, batch_id, run_ts)
         hospital_hourly = build_feature_hospital_hourly(df_hospital, batch_id, run_ts)
+        diagnosis_hourly = build_feature_diagnosis_hourly(
+            df_clinic.filter(F.col("diagnosis_code").isNotNull()), batch_id, run_ts
+        )
+        symptom_hourly = build_feature_symptom_hourly(exploded_symptoms, batch_id, run_ts)
 
         if skip_jdbc:
             rows_region = log_db_write_skipped(
@@ -799,6 +903,12 @@ def main() -> int:
             )
             rows_hospital = log_db_write_skipped(
                 hospital_hourly, "feature_hospital_hourly", "feature_hospital_hourly", run_id, batch_id
+            )
+            rows_diagnosis = log_db_write_skipped(
+                diagnosis_hourly, "feature_diagnosis_hourly", "feature_diagnosis_hourly", run_id, batch_id
+            )
+            rows_symptom = log_db_write_skipped(
+                symptom_hourly, "feature_symptom_hourly", "feature_symptom_hourly", run_id, batch_id
             )
             rows_written_total = 0
         else:
@@ -832,7 +942,27 @@ def main() -> int:
                 run_id,
                 batch_id,
             )
-            rows_written_total = rows_region + rows_clinic + rows_hospital
+            rows_diagnosis = write_jdbc_analytic(
+                diagnosis_hourly,
+                "feature_diagnosis_hourly",
+                "feature_diagnosis_hourly",
+                jdbc_url,
+                jdbc_user,
+                jdbc_password,
+                run_id,
+                batch_id,
+            )
+            rows_symptom = write_jdbc_analytic(
+                symptom_hourly,
+                "feature_symptom_hourly",
+                "feature_symptom_hourly",
+                jdbc_url,
+                jdbc_user,
+                jdbc_password,
+                run_id,
+                batch_id,
+            )
+            rows_written_total = rows_region + rows_clinic + rows_hospital + rows_diagnosis + rows_symptom
 
         completed_at = datetime.now(timezone.utc)
         duration_ms = int((time.perf_counter() - started_wall) * 1000)
@@ -861,7 +991,7 @@ def main() -> int:
                 "skipped_count": parse_stats["skipped_count"],
                 "error_count": 0,
                 "rows_written_total": rows_written_total,
-                "rows_computed_total": rows_region + rows_clinic + rows_hospital,
+                "rows_computed_total": rows_written_total, # should be different?
                 "jdbc_skipped": skip_jdbc,
                 "started_at": started_at.isoformat(),
                 "completed_at": completed_at.isoformat(),
