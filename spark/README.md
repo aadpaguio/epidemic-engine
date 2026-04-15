@@ -14,6 +14,7 @@
 | `TOPIC_SYMPTOM` / `TOPIC_CLINIC` / `TOPIC_HOSPITAL` | no       | Defaults to team02 topic names in code                                                                                                                    |
 | `BATCH_ID` / `RUN_ID`                               | no       | Run metadata stored on fact rows                                                                                                                          |
 | `SPARK_JDBC_JAR`                                    | no       | Set in Docker image to PostgreSQL JDBC path                                                                                                               |
+| `SPARK_EXTRA_JARS`                                  | no       | Optional comma-separated Spark datasource jars; the image now sets this to the Spark Kafka connector jars                                                 |
 | `ANALYTICS_SKIP_DEGRADE_PCT`                        | no       | Skip-rate threshold for `degraded` summary (default `25`)                                                                                                 |
 | `SKIP_JDBC_WRITE`                                   | no       | If `1` / `true` / `yes` / `on`, run Kafka → parse → aggregates and logs **without** `JDBC_`* or any database write (`write_mode: dry_run` on fact tables) |
 
@@ -35,11 +36,13 @@ Phase 1 fills the **typed topics**; Phase 2 reads those same topics. Run in this
   ```
    Wait until the `PipelineRun` and both `TaskRun`s succeed (`oc get pipelinerun,taskrun -n "$NAMESPACE"`). Each run processes up to `**batch-size**` messages (default **100**) from validated → typed topics.
 4. **Kafka bootstrap** — `infra/spark-job.yaml` uses the **same `KAFKA_BOOTSTRAP` as `tekton/pipelinerun.yaml`** (`kafka-bootstrap`). If your team changes the broker in the `PipelineRun`, update the Job env to match.
-5. **Build/push the Spark image** (see **Docker image** below), then:
+5. **Apply RBAC + create the ETL script ConfigMap** (no custom image build needed):
   ```bash
    oc apply -f infra/spark-rbac.yaml -n "$NAMESPACE"
+   oc create configmap spark-etl-script --from-file=etl.py=spark/etl.py \
+     --dry-run=client -o yaml | oc apply -n "$NAMESPACE" -f -
   ```
-6. **Database optional for first test** — Uncomment `**SKIP_JDBC_WRITE`** in `infra/spark-job.yaml` (or patch the Job) so you do not need the DB secret yet. When the DB exists, remove `SKIP_JDBC_WRITE` and create the `**epidemic-db-spark`** secret expected by the manifest.
+6. **Database optional for first test** — `infra/spark-job.yaml` defaults to `**SKIP_JDBC_WRITE=true`**, so no DB secret is required. When the DB exists, remove/flip `SKIP_JDBC_WRITE` and create the `**epidemic-db-spark`** secret expected by the manifest.
 7. **Run the Spark Job** — `oc apply -f infra/spark-job.yaml -n "$NAMESPACE"` then `**oc logs -f job/epidemic-spark-etl -n "$NAMESPACE"`**. You should see `**[ANALYTICS]`** lines (`kafka_read`, `parse`, `db_write`, `summary`). Topic env vars default to `**ds551-s26.team02.***` and should match Phase 1 output topic params.
 8. **Re-run** — Delete the Job before re-applying: `**oc delete job epidemic-spark-etl -n "$NAMESPACE"`**. Run another `**oc create -f tekton/pipelinerun.yaml`** to push more batches through Phase 1, then run the Spark Job again.
 
@@ -67,87 +70,32 @@ python spark/etl.py
 
 So: same *logical* broker, but pick the **hostname that works from where the process runs** (laptop vs pod).
 
-## Docker image (OpenShift registry)
+## Container image strategy (TA guidance)
 
-The **Dockerfile** uses **UBI 9** (`registry.access.redhat.com/ubi9/python-311`) and **`dnf`** for Java so cluster builds do not need **Debian mirrors** (`deb.debian.org`, often blocked from build pods).
+For Phase 2, use the pre-built image in the Job spec instead of OpenShift image builds:
 
-### On-cluster build from Git (usually best)
-
-The cluster **clones** the repo—**no laptop tarball upload**. Requires the build pod to reach **GitHub** (or your Git host). The `Dockerfile` is at the repo root; `.dockerignore` keeps the clone/build context small.
-
-If you **already** have a **binary** `BuildConfig` named `epidemic-spark-etl`, delete it (and optionally the old `ImageStream`) before creating a Git-sourced one:
-
-```bash
-oc delete buildconfig epidemic-spark-etl --ignore-not-found
-# Optional: only if you want a clean ImageStream — Job will break until a new build completes.
-# oc delete imagestream epidemic-spark-etl --ignore-not-found
+```yaml
+image: apache/spark:3.5.0
 ```
 
-**Branch:** always build from **`main`** — merge feature branches there before you rely on cluster builds.
+This avoids current build-path issues (`oc start-build` / binary upload) and still
+satisfies the containerization requirement for this phase.
+
+If additional Python packages are needed, install them inline at job runtime:
 
 ```bash
-REPO=https://github.com/bu-cds-ds551-s26/epidemic-engine-2-smith-fergusonhull-nguyen-paguio.git
-```
-
-**Private GitHub repo** (typical for course teams) — **HTTPS + PAT:**
-
-1. Create a GitHub **personal access token** with **read** access to this repo (never commit the token; store only in OpenShift).
-
-2. Create a **basic-auth** secret and allow the **`builder`** account to use it for clones:
-
-```bash
-oc create secret generic git-github-epidemic \
-  --from-literal=username=git \
-  --from-literal=password=<GITHUB_PAT> \
-  --type=kubernetes.io/basic-auth
-
-oc secrets link builder git-github-epidemic
-```
-
-3. Create the `BuildConfig`:
-
-```bash
-oc new-build "${REPO}#main" --name epidemic-spark-etl --strategy docker --source-secret=git-github-epidemic
-```
-
-**Public repo:** same `oc new-build` line **without** `--source-secret=...`.
-
-Rebuild after you **push** to **`main`**:
-
-```bash
-oc start-build epidemic-spark-etl --follow
-```
-
-SSH deploy keys are also supported (`kubernetes.io/ssh-auth` secret + `--source-secret`); see OpenShift **“Creating a Secret for Git Authentication”**.
-
-**If the cluster cannot reach GitHub**, Git-sourced builds will not work—use binary `--from-dir` or build locally.
-
-### Laptop: docker build + push
-
-From the **repository root** (only works if you have a **reachable** registry URL from your machine; many class clusters have **no public registry route**):
-
-```bash
-export REGISTRY=<external-registry-host-from-oc-or-course-docs>
-docker build -t "${REGISTRY}/$(oc project -q)/epidemic-spark-etl:latest" .
-oc registry login   # if supported
-docker push "${REGISTRY}/$(oc project -q)/epidemic-spark-etl:latest"
-```
-
-If **`ADD`** of the PostgreSQL JDBC JAR fails in-cluster (egress), building **on your laptop** avoids that.
-
-### On-cluster binary build (fallback)
-
-```bash
-oc new-build --name=epidemic-spark-etl --binary --strategy=docker
-oc start-build epidemic-spark-etl --from-dir=. --follow
+pip install kafka-python-ng psycopg2-binary --target=/tmp/pkgs --quiet
+export PYTHONPATH="/tmp/pkgs:${PYTHONPATH:-}"
 ```
 
 ## Kubernetes: one-shot Job (testing)
 
-`infra/spark-job.yaml` defines a **Job** (runs once to completion). Update the image reference, `KAFKA_BOOTSTRAP`, `JDBC_URL`, topic env vars, and Secret name to match your namespace.
+`infra/spark-job.yaml` defines a **Job** (runs once to completion). It uses `apache/spark:3.5.0` and mounts `spark/etl.py` from a ConfigMap, so apply RBAC and create/update the ConfigMap before running:
 
 ```bash
 oc apply -n "${NS}" -f infra/spark-rbac.yaml
+oc create configmap spark-etl-script --from-file=etl.py=spark/etl.py \
+  --dry-run=client -o yaml | oc apply -n "${NS}" -f -
 oc apply -n "${NS}" -f infra/spark-job.yaml
 oc logs -f job/epidemic-spark-etl -n "${NS}"
 ```
