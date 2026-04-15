@@ -6,7 +6,9 @@
 #   - With SKIP_JDBC_WRITE=true (default below): no DB secret required.
 #   - For real JDBC writes: set SKIP_JDBC_WRITE to false/remove it, uncomment JDBC_* env,
 #     and create secret epidemic-db-spark (username + password keys).
-#   - Replace image path if your OpenShift project name differs.
+#   - Create ConfigMap from repo script:
+#       oc create configmap spark-etl-script --from-file=etl.py=spark/etl.py \
+#         --dry-run=client -o yaml | oc apply -f -
 #
 # Run once:
 #   oc apply -n <namespace> -f infra/spark-job.yaml
@@ -33,9 +35,16 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: spark-etl
-          # Must match `oc project -q` (ImageStream lives in that project).
-          image: image-registry.openshift-image-registry.svc:5000/ds551-2026-spring-a5f0d1/epidemic-spark-etl:latest
-          imagePullPolicy: Always
+          # TA fallback: use pre-built Spark image while OpenShift builds are unreliable.
+          image: apache/spark:3.5.0
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              pip install kafka-python-ng psycopg2-binary --target=/tmp/pkgs --quiet
+              export PYTHONPATH="/tmp/pkgs:${PYTHONPATH:-}"
+              python /opt/epidemic/etl.py
           resources:
             requests:
               memory: "1Gi"
@@ -73,3 +82,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+          volumeMounts:
+            - name: etl-script
+              mountPath: /opt/epidemic
+              readOnly: true
+      volumes:
+        - name: etl-script
+          configMap:
+            name: spark-etl-script
