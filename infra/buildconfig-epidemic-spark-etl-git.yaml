@@ -1,0 +1,42 @@
+# Git-sourced Docker build for the Spark ETL image (works for private GitHub when
+# `oc new-build URL#main` fails: older `oc` clients probe GitHub without your secret,
+# get 404, and misclassify the URL as an image/template).
+#
+# Prereqs (same as spark/README.md):
+#   - Secret with GitHub HTTPS credentials, e.g. kubernetes.io/basic-auth
+#     (username=git, password=<PAT>) and: oc secrets link builder <secret-name>
+#
+# Apply (use your namespace if not current):
+#   oc apply -f infra/buildconfig-epidemic-spark-etl-git.yaml
+#   oc start-build epidemic-spark-etl --follow
+#
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: epidemic-spark-etl
+spec: {}
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: epidemic-spark-etl
+  labels:
+    app: epidemic-spark-etl
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/bu-cds-ds551-s26/epidemic-engine-2-smith-fergusonhull-nguyen-paguio.git
+      ref: main
+    sourceSecret:
+      name: github-repo-secret
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: epidemic-spark-etl:latest
+  triggers:
+    - type: ConfigChange

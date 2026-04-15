@@ -19,6 +19,7 @@ This is **one repository for all three phases**. You will work on them sequentia
 ### Reading This Repository
 
 **Quick orientation — start here:**
+
 - **Big picture overview:** `../PROJECT-PHASES-SUMMARY.md` (5-min read covering all three phases)
 - **Phase 1 specification:** `INSTRUCTIONS.md` (you are here)
 - **Phase 2 specification:** `PHASE2-INSTRUCTIONS.md` (read after Phase 1 is due)
@@ -35,7 +36,7 @@ This is **one repository for all three phases**. You will work on them sequentia
 
 - **OpenShift namespace:** provided in your team credentials doc
 - **Kafka bootstrap server (internal):** `kafka-teamXX:9092`
-  Use this address from **within your own team namespace** (e.g. `kafka-team03:9092` for team03).
+Use this address from **within your own team namespace** (e.g. `kafka-team03:9092` for team03).
   > **Note:** `my-cluster-kafka-bootstrap.ds551-2026-spring-9ab13b.svc.cluster.local:9092` is the **shared class broker used for A03 only** — do not use it for the project. Each team has its own per-team Kafka instance reachable at `kafka-teamXX:9092` from within that team's namespace.
 - **Raw input topic:** `ds551-s26.teamXX.raw` (replace `XX` with your team number, for example `team03`)
 - **Tekton:** pre-installed in your namespace; starter Task and Pipeline may be deployed for reference
@@ -55,11 +56,13 @@ The event generator continuously sends synthetic, funny epidemiological events t
 
 The generator produces six event types. **Three are routable** and should be forwarded to typed output topics:
 
-| `event_type` | Additional fields |
-|---|---|
-| `symptom_report` | `age`, `symptoms` (list), `severity`, `duration_days`, `reported_via`, `available_beds` |
-| `clinic_visit` | `visit_id`, `clinic_id`, `visit_type`, `primary_complaint`, `temperature_f`, `diagnosis_code`, `prescribed_medication`, `follow_up_required`, `available_beds` |
-| `hospital_admission` | `admission_id`, `hospital_id`, `admission_reason`, `severity`, `temperature_f`, `oxygen_level`, `expected_los_days`, `available_beds` |
+
+| `event_type`         | Additional fields                                                                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `symptom_report`     | `age`, `symptoms` (list), `severity`, `duration_days`, `reported_via`, `available_beds`                                                                        |
+| `clinic_visit`       | `visit_id`, `clinic_id`, `visit_type`, `primary_complaint`, `temperature_f`, `diagnosis_code`, `prescribed_medication`, `follow_up_required`, `available_beds` |
+| `hospital_admission` | `admission_id`, `hospital_id`, `admission_reason`, `severity`, `temperature_f`, `oxygen_level`, `expected_los_days`, `available_beds`                          |
+
 
 The other three types (`general_health_report`, `vaccination`, `emergency_incident`) carry only base fields plus a `data` placeholder. Your pipeline should **silently drop** these after validation — they are not invalid, just unroutable.
 
@@ -96,6 +99,7 @@ This is a planning deliverable. Graders want to see that you have read the spec,
 Build a Tekton pipeline that ingests raw synthetic, funny epidemiological events from Kafka, validates their schema, enriches them with metadata, and routes them to typed output topics.
 
 **Data flow:**
+
 ```
 Event Generator → ds551-s26.teamXX.raw (Kafka)
   ↓ [validate-events Task]
@@ -122,16 +126,18 @@ Read from your raw topic and validate each event:
 Read from your validated topic and for each event:
 
 1. Add enrichment fields:
-   - `team_id`: your team number as a string (for example `"team03"`)
-   - `processing_timestamp`: the current UTC time in ISO 8601 format
-   - `event_source`: `"ds551-event-generator"`
+  - `team_id`: your team number as a string (for example `"team03"`)
+  - `processing_timestamp`: the current UTC time in ISO 8601 format
+  - `event_source`: `"ds551-event-generator"`
 2. Route to the correct typed topic based on `event_type`:
 
-| event_type | Output topic |
-| --- | --- |
-| `symptom_report` | `ds551-s26.teamXX.symptom_reports` |
-| `clinic_visit` | `ds551-s26.teamXX.clinic_visits` |
+
+| event_type           | Output topic                           |
+| -------------------- | -------------------------------------- |
+| `symptom_report`     | `ds551-s26.teamXX.symptom_reports`     |
+| `clinic_visit`       | `ds551-s26.teamXX.clinic_visits`       |
 | `hospital_admission` | `ds551-s26.teamXX.hospital_admissions` |
+
 
 Events with unrecognized types (`general_health_report`, `vaccination`, `emergency_incident`) should be silently dropped — do not forward them to any topic.
 
@@ -147,14 +153,14 @@ tekton/
 └── README.md
 ```
 
-**`tasks.yaml`** — Define two Tekton Tasks:
+`**tasks.yaml**` — Define two Tekton Tasks:
 
 - `validate-events`: params `kafka-bootstrap`, `input-topic`, `output-topic`, `batch-size`
 - `route-and-enrich`: params `kafka-bootstrap`, `input-topic`, `symptom-topic`, `clinic-topic`, `hospital-topic`, `team-id`, `batch-size`
 
-**`pipeline.yaml`** — Chain `validate-events` to `route-and-enrich` using `runAfter`
+`**pipeline.yaml**` — Chain `validate-events` to `route-and-enrich` using `runAfter`
 
-**`pipelinerun.yaml`** — Supply your actual param values:
+`**pipelinerun.yaml**` — Supply your actual param values:
 
 - `kafka-bootstrap: kafka-teamXX:9092`
 - `input-topic: ds551-s26.teamXX.raw`
@@ -164,7 +170,7 @@ tekton/
 - `hospital-topic: ds551-s26.teamXX.hospital_admissions`
 - `team-id: teamXX`
 
-**`tekton/README.md`** — Document:
+`**tekton/README.md**` — Document:
 
 1. Pipeline design
 2. The exact deploy commands you used
@@ -207,11 +213,13 @@ The `pip install` must be in the same `script:` block as your Python code. Each 
 
 ### Grading (600 points)
 
-| Component | Points | Criteria |
-| --- | ---: | --- |
-| Working pipeline | 400 | Consumes from raw, validates, routes all three event types to correct typed topics, enrichment fields present |
-| Pipeline manifests | 100 | Valid `tasks.yaml`, `pipeline.yaml`, `pipelinerun.yaml`; correct params and task chaining |
-| Documentation | 100 | `tekton/README.md` explains design, deployment, and verification |
+
+| Component          | Points | Criteria                                                                                                      |
+| ------------------ | ------ | ------------------------------------------------------------------------------------------------------------- |
+| Working pipeline   | 400    | Consumes from raw, validates, routes all three event types to correct typed topics, enrichment fields present |
+| Pipeline manifests | 100    | Valid `tasks.yaml`, `pipeline.yaml`, `pipelinerun.yaml`; correct params and task chaining                     |
+| Documentation      | 100    | `tekton/README.md` explains design, deployment, and verification                                              |
+
 
 ---
 
@@ -312,6 +320,7 @@ Phase 3 Features (your choice)
 ### Scoring Model
 
 **Required Baseline (400 pts):**
+
 - End-to-end integration working (all pods running, data flowing)
 - Data flow documentation with specific component names
 - System architecture diagram
@@ -319,28 +328,31 @@ Phase 3 Features (your choice)
 
 **Feature Categories (1100+ pts available; mix and match):**
 
-| Category | Level | Points | What You Build |
-|----------|-------|--------|-----------------|
-| **A: Alerting** | Basic | 200 | Monitor ≥2 metrics, threshold-based triggers, ≥1 notification method (email/Slack/SMS) |
-| | Advanced | 300 | + Severity levels, suppression/deduplication, ≥2 aggregation windows, configurable thresholds |
-| **B: ML/Analytics** | Anomaly | 250 | Z-scores or IQR to flag unusual events; store results in DB |
-| | Outbreak | 350 | Supervised learning; feature engineering; predict disease severity |
-| **C: Visualization** | Notebook | 150 | Jupyter notebooks with plots, tables, insights from Phase 2 analytics (**MANDATORY**) |
-| | Dashboard | 150 | Lightweight web dashboard or API endpoint serving analytics |
-| **D: Testing/Reliability** | Comprehensive | 300 | Unit + integration + end-to-end tests covering all pipeline stages |
-| | Data Quality | 300 | Schema validation, anomaly detection on incoming data, profiling dashboards |
+
+| Category                   | Level         | Points | What You Build                                                                                |
+| -------------------------- | ------------- | ------ | --------------------------------------------------------------------------------------------- |
+| **A: Alerting**            | Basic         | 200    | Monitor ≥2 metrics, threshold-based triggers, ≥1 notification method (email/Slack/SMS)        |
+|                            | Advanced      | 300    | + Severity levels, suppression/deduplication, ≥2 aggregation windows, configurable thresholds |
+| **B: ML/Analytics**        | Anomaly       | 250    | Z-scores or IQR to flag unusual events; store results in DB                                   |
+|                            | Outbreak      | 350    | Supervised learning; feature engineering; predict disease severity                            |
+| **C: Visualization**       | Notebook      | 150    | Jupyter notebooks with plots, tables, insights from Phase 2 analytics (**MANDATORY**)         |
+|                            | Dashboard     | 150    | Lightweight web dashboard or API endpoint serving analytics                                   |
+| **D: Testing/Reliability** | Comprehensive | 300    | Unit + integration + end-to-end tests covering all pipeline stages                            |
+|                            | Data Quality  | 300    | Schema validation, anomaly detection on incoming data, profiling dashboards                   |
+
 
 **Scoring ceiling:** You don't need to pick every category. Typical teams pick:
+
 - Visualization (mandatory) + Alerting (200–300 pts) + Testing (300 pts) = ~750–850 pts
 - Visualization + ML Anomaly + Alerting = ~700–800 pts
 
 ### Key Deliverables
 
 1. **Deployed system** — All components running in OpenShift namespace
-2. **`docs/architecture.md`** — Final integrated architecture with data flow narrative
-3. **`docs/runbook.md`** — Normal ops and incident response procedures
-4. **`docs/genai-usage.md`** — Log of AI usage with verification approach
-5. **`PHASE3-FEATURES.md`** — Scorecard mapping claimed features to deployed evidence
+2. `**docs/architecture.md`** — Final integrated architecture with data flow narrative
+3. `**docs/runbook.md`** — Normal ops and incident response procedures
+4. `**docs/genai-usage.md**` — Log of AI usage with verification approach
+5. `**PHASE3-FEATURES.md**` — Scorecard mapping claimed features to deployed evidence
 6. **Presentation video** — 6 minutes max, demonstrating system and one feature
 7. **Team interview** — 20 minutes during final exam window; individual defense of design choices
 
@@ -380,3 +392,4 @@ GenAI tools are encouraged as engineering assistants. You must:
 - `docs/architecture.md` — architecture and design decisions
 - `docs/genai-usage.md` — AI usage log
 - `tekton/README.md` — Phase 1 pipeline documentation
+
