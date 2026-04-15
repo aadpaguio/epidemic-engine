@@ -54,6 +54,13 @@ def _env_truthy(name: str) -> bool:
     return _optional_env(name, "").lower() in ("1", "true", "yes", "on")
 
 
+def _jar_list_env(name: str) -> list[str]:
+    raw = _optional_env(name)
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 # Single schema tolerates all typed payloads (unknown fields ignored by from_json).
 PAYLOAD_SCHEMA = StructType(
     [
@@ -142,9 +149,11 @@ def build_spark(app_name: str = "epidemic-phase2-etl") -> SparkSession:
     builder = (
         SparkSession.builder.appName(app_name).config("spark.sql.session.timeZone", "UTC")
     )
-    jdbc_jar = _optional_env("SPARK_JDBC_JAR")
-    if jdbc_jar:
-        builder = builder.config("spark.jars", jdbc_jar)
+    spark_jars = []
+    spark_jars.extend(_jar_list_env("SPARK_EXTRA_JARS"))
+    spark_jars.extend(_jar_list_env("SPARK_JDBC_JAR"))
+    if spark_jars:
+        builder = builder.config("spark.jars", ",".join(spark_jars))
     return builder.getOrCreate()
 
 
@@ -484,10 +493,10 @@ def build_feature_region_hourly(
         "event_type",
         "event_ts",
         "severity",
-        # topic has field [expected_los_days], not quite comparable
-        F.lit(None).cast("double").alias("duration_days"), 
+        # Hospital stream uses expected_los_days, not duration_days; null for union schema.
+        F.lit(None).cast("double").alias("duration_days"),
         "temperature_f",
-        "available_beds"
+        "available_beds",
     )
     base = sym.unionByName(cli).unionByName(hos)
 

@@ -12,6 +12,7 @@
 Phase 2 builds on your Phase 1 pipeline by adding a **batch analytics layer**. Your Spark job will consume the typed Kafka topics from Phase 1 (symptom_reports, clinic_visits, hospital_admissions), compute meaningful business insights, and persist results to a database for operational use.
 
 **Data Flow:**
+
 ```
 Phase 1 Output Topics (Kafka)
 ├─ ds551-s26.teamXX.symptom_reports
@@ -43,14 +44,16 @@ Database (your choice: PostgreSQL, MongoDB, TimescaleDB, InfluxDB, etc.)
 
 ## Grading Breakdown
 
-| Component | Points | Details |
-|-----------|--------|---------|
-| **Database Deployment** | 50–75 | Base 50 pts; up to +25 bonus for InfluxDB or other advanced DB choices |
-| **Spark Analytics Job** | 100 | Consumes typed Kafka topics; 3+ distinct analytics; produces valid output |
-| **Containerization** | 50 | Dockerfile; image builds and pushes to registry |
-| **Kubernetes Deployment** | 50 | Job/CronJob manifest; runs without errors; writes to database |
-| **Documentation** | 150 | README, stress-test report, runbook, schema docs |
-| **Total** | **400–425** | Base 400 pts; up to 25 bonus points available |
+
+| Component                 | Points      | Details                                                                   |
+| ------------------------- | ----------- | ------------------------------------------------------------------------- |
+| **Database Deployment**   | 50–75       | Base 50 pts; up to +25 bonus for InfluxDB or other advanced DB choices    |
+| **Spark Analytics Job**   | 100         | Consumes typed Kafka topics; 3+ distinct analytics; produces valid output |
+| **Containerization**      | 50          | Dockerfile; image builds and pushes to registry                           |
+| **Kubernetes Deployment** | 50          | Job/CronJob manifest; runs without errors; writes to database             |
+| **Documentation**         | 150         | README, stress-test report, runbook, schema docs                          |
+| **Total**                 | **400–425** | Base 400 pts; up to 25 bonus points available                             |
+
 
 ---
 
@@ -59,6 +62,7 @@ Database (your choice: PostgreSQL, MongoDB, TimescaleDB, InfluxDB, etc.)
 ### Requirement
 
 Deploy one database system to OpenShift in your team namespace. It must:
+
 - Run successfully as a Pod or StatefulSet
 - Be accessible from within the cluster (internal hostname)
 - Support the schema you'll use for analytics results
@@ -68,15 +72,18 @@ Deploy one database system to OpenShift in your team namespace. It must:
 
 Choose **one** of:
 
-| Database | Base Points | Bonus |
-|----------|-------------|-------|
-| **PostgreSQL** | 50 | — |
-| **MongoDB** | 50 | +10 if you add secondary indexes and explain query performance |
-| **TimescaleDB** | 50 | +20 (designed for time-series, more sophisticated) |
-| **InfluxDB** | 50 | +25 (time-series TSDB, retention policies, downsampling) |
-| **Redis** | 30 | +20 if you add persistence config and benchmark memory usage |
+
+| Database        | Base Points | Bonus                                                          |
+| --------------- | ----------- | -------------------------------------------------------------- |
+| **PostgreSQL**  | 50          | —                                                              |
+| **MongoDB**     | 50          | +10 if you add secondary indexes and explain query performance |
+| **TimescaleDB** | 50          | +20 (designed for time-series, more sophisticated)             |
+| **InfluxDB**    | 50          | +25 (time-series TSDB, retention policies, downsampling)       |
+| **Redis**       | 30          | +20 if you add persistence config and benchmark memory usage   |
+
 
 **Example:**
+
 - Basic PostgreSQL: 50 pts
 - MongoDB with indexes + performance analysis: 50 + 10 = **60 pts**
 - TimescaleDB with hypertables + continuous aggregates: 50 + 20 = **70 pts**
@@ -85,12 +92,14 @@ Choose **one** of:
 ### Deployment
 
 Use a Kubernetes manifest (YAML file submitted to your repo):
+
 - StatefulSet for data durability
 - PersistentVolumeClaim for storage
 - Service with internal DNS for Spark job connectivity
 - Example bootstrap SQL scripts (if relational) to set up schema
 
 Example service connectivity from Spark:
+
 ```
 # For PostgreSQL
 jdbc:postgresql://postgres-service.team03.svc.cluster.local:5432/analytics
@@ -115,6 +124,7 @@ http://influxdb-service.team03.svc.cluster.local:8086
 ### Requirement
 
 Implement a Spark batch job that:
+
 1. Connects to Kafka and reads the three typed topics from Phase 1
 2. Computes **3 or more distinct analytics**
 3. Writes results to your database
@@ -142,6 +152,7 @@ symptom_reports = spark.readStream.format("kafka") \
 Choose analytics that are **distinct** (not just renaming the same aggregation). Examples:
 
 **✅ Good Examples:**
+
 - **Trend analysis:** Event counts per hour; plot over time
 - **Aggregations:** Average severity by location; percentiles of response time
 - **Joins:** Correlate clinic visits with hospital admissions in same region/time window
@@ -149,6 +160,7 @@ Choose analytics that are **distinct** (not just renaming the same aggregation).
 - **Anomaly detection:** Z-score or IQR on event volume; flag unusual hours
 
 **❌ Bad Examples:**
+
 - Three separate count-by-location queries (too similar)
 - Just renaming the same aggregation three times
 - Not actually computing anything distinct
@@ -255,6 +267,7 @@ Get the registry URL from your team credentials or ask course staff.
 ### Requirement
 
 Deploy your Spark job on OpenShift using **one of:**
+
 - **Kubernetes Job** — runs once, completes
 - **Kubernetes CronJob** — runs on schedule (e.g., every 6 hours)
 - **Tekton Task** — runs via Tekton (Phase 1 pattern)
@@ -317,71 +330,67 @@ Provide documentation so an on-call engineer can understand, run, and troublesho
 Document the following:
 
 1. **Analytics descriptions** (1 sentence each)
-   > Example: "Analytics 1 computes hourly event rate; used to detect traffic spikes"
-
+  > Example: "Analytics 1 computes hourly event rate; used to detect traffic spikes"
 2. **Data flow and Kafka connectivity**
-   - Which topics are read
-   - Expected schema from Phase 1
-   - Example event structure
-
+  - Which topics are read
+  - Expected schema from Phase 1
+  - Example event structure
 3. **Manual run command**
-   ```bash
+  ```bash
    spark-submit --master k8s://https://<master>:6443 \
      --deploy-mode cluster \
      --conf spark.kubernetes.container.image=<image> \
      spark/etl.py
-   ```
-
+  ```
 4. **Monitoring and health checks**
-   - How to verify the job is running
-   - Expected log messages
-   - Database query to verify results were written
-
+  - How to verify the job is running
+  - Expected log messages
+  - Database query to verify results were written
 5. **Schema documentation**
-   - Database schema (tables/collections created)
-   - Sample output rows
-   - Data types for each analytics result
+  - Database schema (tables/collections created)
+  - Sample output rows
+  - Data types for each analytics result
 
 ### R5b: Stress-Test Report (`docs/phase2-stress-test.md`, 40 points)
 
 Test your system's performance limits. Report:
 
 1. **Test setup**
-   - Kafka bootstrap configuration
-   - Database specs
-   - Spark job resource limits (CPU, memory)
-
+  - Kafka bootstrap configuration
+  - Database specs
+  - Spark job resource limits (CPU, memory)
 2. **Load scenarios**
-   - 100 events/sec for 1 hour
-   - 1000 events/sec for 10 minutes
-   - Measure: latency, throughput, memory usage, database write time
-
+  - 100 events/sec for 1 hour
+  - 1000 events/sec for 10 minutes
+  - Measure: latency, throughput, memory usage, database write time
 3. **Results**
-   - Table: events/sec vs. latency (ms)
-   - Bottlenecks identified (Kafka? Database? Spark?)
-   - Back-pressure handling (what happens if Kafka gets ahead of Spark?)
-
+  - Table: events/sec vs. latency (ms)
+  - Bottlenecks identified (Kafka? Database? Spark?)
+  - Back-pressure handling (what happens if Kafka gets ahead of Spark?)
 4. **Failure modes**
-   - What happens if database goes down? (Job hangs? Crashes? Retries?)
-   - What happens if Kafka topic gets too large? (Memory pressure?)
-   - Recovery procedure
+  - What happens if database goes down? (Job hangs? Crashes? Retries?)
+  - What happens if Kafka topic gets too large? (Memory pressure?)
+  - Recovery procedure
 
 ### R5c: Runbook (`docs/phase2-runbook.md`, 30 points)
 
 Operational procedures for on-call engineers:
 
 **Startup:**
+
 - Deploy database
 - Deploy Spark job
 - Verify job is running
 - Verify analytics results appear in database
 
 **Shutdown:**
+
 - Gracefully stop Spark job (allow in-flight data to complete)
 - Verify no orphaned processes
 - Clean up PVCs if needed
 
 **Routine troubleshooting:**
+
 - Job is not running (check logs, pod status)
 - Database is full (clean old analytics, expand PVC)
 - Kafka topics are lagging (check Spark parallelism, increase partitions)
@@ -417,21 +426,25 @@ All files must be in your team's GitHub repo, which is the official submission s
 ## Common Issues & Tips
 
 **Q: My Spark job says it can't connect to Kafka**
+
 - Verify you're using the correct bootstrap server (internal DNS, not external)
 - Check that Kafka pods are running: `kubectl get pods | grep kafka`
 - Verify your Spark job is in the same namespace or can see cross-namespace DNS
 
 **Q: Writes to database are very slow**
+
 - Add indexes on your analytics results tables
 - Use batch writes, not row-by-row
 - Monitor database CPU/memory; may need to scale
 
 **Q: Job runs locally but fails on OpenShift**
+
 - Check RBAC permissions; add ServiceAccount role bindings
 - Verify image is pushed to correct registry
 - Check container logs: `kubectl logs <pod>`
 
 **Q: I don't know how to partition my analytics optimally**
+
 - Start with 4 partitions per topic; tune based on stress test
 - Use `.repartition(N)` in Spark if you need to adjust
 - Monitor parallelism: Spark UI shows if tasks are under-utilized
