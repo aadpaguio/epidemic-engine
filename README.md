@@ -103,5 +103,6 @@ Additional folders and files will be added later as the project grows.
 - **GenAI Usage:** `docs/genai-usage.md`
 - **Kafka Tips:** `docs/kafka-tips.md`
 - **Spark Tips:** `docs/spark-tips.md`
+- **Spark ETL (deploy / redeploy / test):** `spark/README.md` (includes OpenShift Job iteration commands)
 - **Tekton Tips:** `docs/tekton-tips.md`
 - **Phase 1 Pipeline Notes:** create `tekton/README.md` as part of your submission
