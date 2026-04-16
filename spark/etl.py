@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import Column, DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
     ArrayType,
@@ -61,6 +61,22 @@ def _jar_list_env(name: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def severity_for_analytics(severity_col: Column) -> Column:
+    """
+    Generator emits severity as strings. Map to ordinals for sum/avg aggregates:
+    mild=1, moderate=2, severe=3, critical=4. All-digit strings still cast as ints.
+    """
+    s = F.lower(F.trim(severity_col.cast("string")))
+    labeled = (
+        F.when(s == F.lit("mild"), F.lit(1))
+        .when(s == F.lit("moderate"), F.lit(2))
+        .when(s == F.lit("severe"), F.lit(3))
+        .when(s == F.lit("critical"), F.lit(4))
+    )
+    as_digits = F.when(s.rlike("^[0-9]+$"), s.cast("int"))
+    return F.coalesce(as_digits, labeled).cast("int")
+
+
 # Single schema tolerates all typed payloads (unknown fields ignored by from_json).
 PAYLOAD_SCHEMA = StructType(
     [
@@ -70,7 +86,7 @@ PAYLOAD_SCHEMA = StructType(
         StructField("patient_id", StringType(), True),
         StructField("age", IntegerType(), True),
         StructField("symptoms", ArrayType(StringType()), True),
-        StructField("severity", IntegerType(), True),
+        StructField("severity", StringType(), True),
         StructField("duration_days", DoubleType(), True),
         StructField("reported_via", StringType(), True),
         StructField("visit_id", StringType(), True),
@@ -79,7 +95,7 @@ PAYLOAD_SCHEMA = StructType(
         StructField("primary_complaint", StringType(), True),
         StructField("temperature_f", DoubleType(), True),
         StructField("diagnosis_code", StringType(), True),
-        StructField("prescribed_medication", StringType(), True),
+        StructField("prescribed_medication", BooleanType(), True),
         StructField("follow_up_required", BooleanType(), True),
         StructField("admission_id", StringType(), True),
         StructField("hospital_id", StringType(), True),
@@ -199,7 +215,7 @@ def parse_kafka_to_payload(kafka_df: DataFrame) -> DataFrame:
         F.col("data.region").alias("region"),
         F.col("data.age").cast("int").alias("age"),
         F.col("data.symptoms").alias("symptoms"),
-        F.col("data.severity").cast("int").alias("severity"),
+        severity_for_analytics(F.col("data.severity")).alias("severity"),
         F.col("data.duration_days").cast("double").alias("duration_days"),
         F.col("data.reported_via").alias("reported_via"),
         # visit_id
@@ -208,7 +224,7 @@ def parse_kafka_to_payload(kafka_df: DataFrame) -> DataFrame:
         F.col("data.primary_complaint").alias("primary_complaint"),
         F.col("data.temperature_f").cast("double").alias("temperature_f"),
         F.col("data.diagnosis_code").alias("diagnosis_code"),
-        F.col("data.prescribed_medication").alias("prescribed_medication"),
+        F.col("data.prescribed_medication").cast("boolean").alias("prescribed_medication"),
         F.when(F.lower(F.col("data.follow_up_required").cast("string")) == "true", F.lit(True))
         .when(F.lower(F.col("data.follow_up_required").cast("string")) == "false", F.lit(False))
         .otherwise(F.col("data.follow_up_required").cast("boolean"))
