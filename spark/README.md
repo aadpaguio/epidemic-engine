@@ -81,12 +81,7 @@ image: apache/spark:3.5.0
 This avoids current build-path issues (`oc start-build` / binary upload) and still
 satisfies the containerization requirement for this phase.
 
-If additional Python packages are needed, install them inline at job runtime:
-
-```bash
-pip install kafka-python-ng psycopg2-binary --target=/tmp/pkgs --quiet
-export PYTHONPATH="/tmp/pkgs:${PYTHONPATH:-}"
-```
+The Job installs **kafka-python-ng** and **psycopg2-binary** with `pip` (not PySpark — that comes from the image). It runs **`spark-submit`** so the driver sees **`pyspark`**, and passes **`--packages`** for the **Kafka SQL** and **PostgreSQL** JDBC jars (downloaded once into **`/tmp/spark-ivy2`**; needs egress to Maven Central unless your cluster mirrors it).
 
 ## Kubernetes: one-shot Job (testing)
 
@@ -105,6 +100,35 @@ To run again, delete the Job (Jobs are immutable):
 ```bash
 oc delete job epidemic-spark-etl -n "${NS}"
 ```
+
+## Redeploy after code or manifest changes
+
+Kubernetes **Jobs are immutable**: you cannot change a running Job’s pod template in place. After you edit **`spark/etl.py`**, refresh the ConfigMap and create a **new** Job. After you edit **`infra/spark-job.yaml`**, re-apply the manifest and again replace the Job.
+
+From the **repository root**, with `NAMESPACE` set to your OpenShift project (same value everywhere):
+
+```bash
+export NAMESPACE=<your-openshift-project>
+
+# 1) Push the latest ETL script into the cluster (skip if you only changed infra/spark-job.yaml)
+oc create configmap spark-etl-script --from-file=etl.py=spark/etl.py \
+  --dry-run=client -o yaml | oc apply -n "$NAMESPACE" -f -
+
+# 2) Remove the old Job (required: Jobs are immutable; pods keep the old ConfigMap mount until recreated)
+oc delete job epidemic-spark-etl -n "$NAMESPACE" --ignore-not-found
+
+# 3) Create a new Job from the manifest on disk (apply whenever spark-job.yaml changed)
+oc apply -f infra/spark-job.yaml -n "$NAMESPACE"
+
+# 4) Stream driver logs until completion
+oc logs -f job/epidemic-spark-etl -n "$NAMESPACE"
+```
+
+**Notes**
+
+- Step 1 alone updates the ConfigMap; you **must** still run steps 2–3 so a new pod mounts the new `etl.py` revision.
+- If you only changed **`infra/spark-job.yaml`**, run steps 2–4 (skip step 1).
+- First run on a **new** worker may re-download **`--packages`** JARs (Ivy cache under `/tmp` in the pod).
 
 ## Local run (developer laptop)
 

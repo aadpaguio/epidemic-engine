@@ -400,11 +400,11 @@ def preliminary_symptoms(parsed_bucketed: DataFrame, topic_symptom: str) -> Data
             "region",
             "event_ts",
             "age",
-            # symptoms (list) TODO add count of symptoms?
+            "symptoms",
             "severity",
             "duration_days",
             "reported_via",
-            "available_beds"
+            "available_beds",
         )
     )
 
@@ -562,7 +562,7 @@ def build_feature_clinic_hourly(
         F.sum(F.when(F.col("follow_up_required"), 1).otherwise(0)).alias(
             "follow_up_true_count" ),
         F.avg("temperature_f").alias("temperature_avg"),
-        F.var("temperature_f").alias("temperature_var"),
+        F.variance("temperature_f").alias("temperature_var"),
         F.count(F.col("temperature_f")).alias("temperature_count"),
         F.min("available_beds").alias("available_beds_min"),
         F.avg("available_beds").alias("available_beds_avg"),
@@ -603,13 +603,13 @@ def build_feature_hospital_hourly(
         F.count(F.lit(1)).alias("admission_count"),
         F.sum("severity").alias("severity_sum"),
         F.avg("severity").alias("severity_avg"),
-        F.var("severity").alias("severity_var"),
+        F.variance("severity").alias("severity_var"),
         F.count(F.col("severity")).alias("severity_count"),
         F.avg("temperature_f").alias("temperature_avg"),
-        F.var("temperature_f").alias("temperature_var"),
+        F.variance("temperature_f").alias("temperature_var"),
         F.count(F.col("temperature_f")).alias("temperature_count"),
         F.avg("oxygen_level").alias("oxygen_avg"),
-        F.var("oxygen_level").alias("oxygen_var"),
+        F.variance("oxygen_level").alias("oxygen_var"),
         F.count(F.col("oxygen_level")).alias("oxygen_count"),
         F.sum("expected_los_days").alias("expected_los_sum"),
         F.count(F.col("expected_los_days")).alias("expected_los_count"),
@@ -660,7 +660,7 @@ def build_feature_diagnosis_hourly(
         F.countDistinct("clinic_id").alias("clinic_id_unique"),
         F.countDistinct("visit_type").alias("visit_type_unique"),
         F.avg("temperature_f").alias("temperature_avg"),
-        F.var("temperature_f").alias("temperature_var"),
+        F.variance("temperature_f").alias("temperature_var"),
         F.count(F.col("temperature_f")).alias("temperature_count")
     )
     return agg.withColumn("batch_id", F.lit(batch_id)).withColumn(
@@ -688,14 +688,14 @@ def build_feature_symptom_hourly(
     agg = df_symptoms.groupBy("bucket_start", "region", "symptom_token").agg(
         F.count(F.lit(1)).alias("symptom_visit_count"),
         F.avg("age").alias("age_avg"),
-        F.var("age").alias("age_var"),
+        F.variance("age").alias("age_var"),
         F.count(F.col("age")).alias("age_count"),
         F.sum("severity").alias("severity_sum"),
         F.avg("severity").alias("severity_avg"),
-        F.var("severity").alias("severity_var"),
+        F.variance("severity").alias("severity_var"),
         F.count(F.col("severity")).alias("severity_count"),
         F.avg("duration_days").alias("duration_days_avg"),
-        F.var("duration_days").alias("duration_days_var"),
+        F.variance("duration_days").alias("duration_days_var"),
         F.count(F.col("duration_days")).alias("duration_days_count")
     )
     return agg.withColumn("batch_id", F.lit(batch_id)).withColumn(

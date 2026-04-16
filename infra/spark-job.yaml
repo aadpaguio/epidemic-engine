@@ -42,9 +42,18 @@ spec:
           args:
             - |
               set -euo pipefail
+              export HOME=/tmp
+              export PIP_NO_CACHE_DIR=1
               pip install kafka-python-ng psycopg2-binary --target=/tmp/pkgs --quiet
-              export PYTHONPATH="/tmp/pkgs:${PYTHONPATH:-}"
-              python /opt/epidemic/etl.py
+              export PYTHONPATH="/tmp/pkgs${PYTHONPATH:+:$PYTHONPATH}"
+              SPARK_HOME="${SPARK_HOME:-/opt/spark}"
+              # PySpark lives in the image; spark-submit wires the classpath. Kafka SQL
+              # connector is fetched via Ivy (--packages); cache under /tmp for OpenShift UIDs.
+              exec "${SPARK_HOME}/bin/spark-submit" \
+                --master 'local[*]' \
+                --conf spark.jars.ivy=/tmp/spark-ivy2 \
+                --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.7.3 \
+                /opt/epidemic/etl.py
           resources:
             requests:
               memory: "1Gi"
