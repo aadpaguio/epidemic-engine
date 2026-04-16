@@ -27,6 +27,9 @@ spec:
     - name: batch-size
       type: string
       default: "100"
+    - name: consumer-timeout-ms
+      type: string
+      default: "30000"
 
   tasks:
     - name: validate
@@ -43,6 +46,8 @@ spec:
           value: $(params.validate-dlq-topic)
         - name: batch-size
           value: $(params.batch-size)
+        - name: consumer-timeout-ms
+          value: $(params.consumer-timeout-ms)
 
     - name: route-and-enrich
       runAfter:
@@ -66,3 +71,5 @@ spec:
           value: $(params.team-id)
         - name: batch-size
           value: $(params.batch-size)
+        - name: consumer-timeout-ms
+          value: $(params.consumer-timeout-ms)
