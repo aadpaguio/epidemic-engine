@@ -71,22 +71,18 @@ spec:
               value: "ds551-s26.team02.clinic_visits"
             - name: TOPIC_HOSPITAL
               value: "ds551-s26.team02.hospital_admissions"
-            # Dry-run: Kafka → Spark facts + [ANALYTICS] logs; no TimescaleDB required.
-            - name: SKIP_JDBC_WRITE
-              value: "true"
-            # Uncomment when SKIP_JDBC_WRITE is removed/false and secret exists:
-            # - name: JDBC_URL
-            #   value: "jdbc:postgresql://timescaledb-service:5432/epidemic"
-            # - name: JDBC_USER
-            #   valueFrom:
-            #     secretKeyRef:
-            #       name: epidemic-db-spark
-            #       key: username
-            # - name: JDBC_PASSWORD
-            #   valueFrom:
-            #     secretKeyRef:
-            #       name: epidemic-db-spark
-            #       key: password
+            - name: JDBC_URL
+              value: "jdbc:postgresql://timescaledb-service:5432/epidemic"
+            - name: JDBC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: epidemic-db-spark
+                  key: username
+            - name: JDBC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: epidemic-db-spark
+                  key: password
             - name: K8S_NAMESPACE
               valueFrom:
                 fieldRef:
