@@ -1,0 +1,63 @@
+# One-shot Job: synthetic load to the Phase 1 raw Kafka topic.
+#
+# Prereq: ConfigMap with the script (from repo root):
+#   oc create configmap loadgen-produce-script \
+#     --from-file=produce.py=loadgen/produce.py \
+#     --dry-run=client -o yaml | oc apply -n "$NAMESPACE" -f -
+#
+# Tune env below, then:
+#   oc apply -n "$NAMESPACE" -f infra/loadgen-job.yaml
+#   oc logs -f job/loadgen-raw-kafka -n "$NAMESPACE"
+#
+# Jobs are immutable; delete before re-running with new params:
+#   oc delete job loadgen-raw-kafka -n "$NAMESPACE" --ignore-not-found
+#
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: loadgen-raw-kafka
+  labels:
+    app: loadgen-raw-kafka
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: loadgen-raw-kafka
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: loadgen
+          image: python:3.11-slim
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              pip install --no-cache-dir -q kafka-python-ng
+              exec python -u /opt/loadgen/produce.py
+          env:
+            # Must match your namespace / course broker (see tekton/pipelinerun.yaml).
+            - name: KAFKA_BOOTSTRAP
+              value: "kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092"
+            - name: LOADGEN_TOPIC
+              value: "ds551-s26.team02.raw"
+            # Target steady-state ingest rate (events per second).
+            - name: LOADGEN_RATE
+              value: "10"
+            # Use exactly one of LOADGEN_DURATION_SEC or LOADGEN_COUNT.
+            - name: LOADGEN_DURATION_SEC
+              value: "60"
+            # - name: LOADGEN_COUNT
+            #   value: "10000"
+            - name: LOADGEN_UNROUTABLE_PCT
+              value: "5"
+          volumeMounts:
+            - name: loadgen-script
+              mountPath: /opt/loadgen
+              readOnly: true
+      volumes:
+        - name: loadgen-script
+          configMap:
+            name: loadgen-produce-script
