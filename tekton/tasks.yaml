@@ -20,6 +20,9 @@ spec:
     - name: batch-size
       type: string
       default: "100"
+    - name: consumer-timeout-ms
+      type: string
+      default: "30000"
   steps:
     - name: validate
       image: python:3.11-slim
@@ -34,6 +37,8 @@ spec:
           value: $(params.validate-dlq-topic)
         - name: BATCH_SIZE
           value: $(params.batch-size)
+        - name: CONSUMER_TIMEOUT_MS
+          value: $(params.consumer-timeout-ms)
       script: |
         set -e
         pip install --no-cache-dir -q kafka-python-ng
@@ -51,7 +56,9 @@ spec:
         TASK = "validate-events"
         PHASE = "validate"
         GROUP = "team02-validate-group"
-        CONSUMER_TIMEOUT_MS = 30000
+        CONSUMER_TIMEOUT_MS = max(
+            0, int(os.environ.get("CONSUMER_TIMEOUT_MS", "30000"))
+        )
 
         BOOTSTRAP = os.environ["KAFKA_BOOTSTRAP"]
         INPUT_TOPIC = os.environ["INPUT_TOPIC"]
@@ -133,15 +140,16 @@ spec:
 
             return True, None, eid_str
 
-        consumer = KafkaConsumer(
-            INPUT_TOPIC,
+        consumer_kwargs = dict(
             bootstrap_servers=BOOTSTRAP,
             group_id=GROUP,
             auto_offset_reset="earliest",
-            consumer_timeout_ms=CONSUMER_TIMEOUT_MS,
             value_deserializer=lambda b: b,
             enable_auto_commit=True,
         )
+        if CONSUMER_TIMEOUT_MS > 0:
+            consumer_kwargs["consumer_timeout_ms"] = CONSUMER_TIMEOUT_MS
+        consumer = KafkaConsumer(INPUT_TOPIC, **consumer_kwargs)
         producer = KafkaProducer(
             bootstrap_servers=BOOTSTRAP,
             value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
@@ -153,7 +161,8 @@ spec:
 
         try:
             while total_consumed < BATCH_SIZE:
-                packs = consumer.poll(timeout_ms=CONSUMER_TIMEOUT_MS)
+                poll_timeout = CONSUMER_TIMEOUT_MS if CONSUMER_TIMEOUT_MS > 0 else 30000
+                packs = consumer.poll(timeout_ms=poll_timeout)
                 if not packs:
                     break
                 for _tp, records in packs.items():
@@ -351,6 +360,9 @@ spec:
     - name: batch-size
       type: string
       default: "100"
+    - name: consumer-timeout-ms
+      type: string
+      default: "30000"
   steps:
     - name: route
       image: python:3.11-slim
@@ -371,6 +383,8 @@ spec:
           value: $(params.team-id)
         - name: BATCH_SIZE
           value: $(params.batch-size)
+        - name: CONSUMER_TIMEOUT_MS
+          value: $(params.consumer-timeout-ms)
       script: |
         set -e
         pip install --no-cache-dir -q kafka-python-ng
@@ -386,7 +400,9 @@ spec:
         TASK = "route-and-enrich"
         PHASE = "route"
         GROUP = "team02-route-group"
-        CONSUMER_TIMEOUT_MS = 30000
+        CONSUMER_TIMEOUT_MS = max(
+            0, int(os.environ.get("CONSUMER_TIMEOUT_MS", "30000"))
+        )
 
         BOOTSTRAP = os.environ["KAFKA_BOOTSTRAP"]
         INPUT_TOPIC = os.environ["INPUT_TOPIC"]
@@ -456,15 +472,16 @@ spec:
                 )
                 return False, True
 
-        consumer = KafkaConsumer(
-            INPUT_TOPIC,
+        consumer_kwargs = dict(
             bootstrap_servers=BOOTSTRAP,
             group_id=GROUP,
             auto_offset_reset="earliest",
-            consumer_timeout_ms=CONSUMER_TIMEOUT_MS,
             value_deserializer=lambda b: b,
             enable_auto_commit=True,
         )
+        if CONSUMER_TIMEOUT_MS > 0:
+            consumer_kwargs["consumer_timeout_ms"] = CONSUMER_TIMEOUT_MS
+        consumer = KafkaConsumer(INPUT_TOPIC, **consumer_kwargs)
         producer = KafkaProducer(
             bootstrap_servers=BOOTSTRAP,
             value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
@@ -477,7 +494,8 @@ spec:
 
         try:
             while total_consumed < BATCH_SIZE:
-                packs = consumer.poll(timeout_ms=CONSUMER_TIMEOUT_MS)
+                poll_timeout = CONSUMER_TIMEOUT_MS if CONSUMER_TIMEOUT_MS > 0 else 30000
+                packs = consumer.poll(timeout_ms=poll_timeout)
                 if not packs:
                     break
                 for _tp, records in packs.items():
