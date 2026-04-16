@@ -384,6 +384,23 @@ spec:
           # Pinned tag: update deliberately when upgrading PG/Timescale (verify Spark JDBC).
           image: timescale/timescaledb:2.14.2-pg16
           imagePullPolicy: IfNotPresent
+          # Cap parallel memory during init/extension DDL under OpenShift cgroup limits.
+          args:
+            - postgres
+            - -c
+            - max_parallel_workers=0
+            - -c
+            - max_parallel_workers_per_gather=0
+            - -c
+            - max_parallel_maintenance_workers=0
+            - -c
+            - timescaledb.max_background_workers=2
+            - -c
+            - shared_buffers=256MB
+            - -c
+            - work_mem=4MB
+            - -c
+            - maintenance_work_mem=64MB
           ports:
             - name: postgres
               containerPort: 5432
@@ -400,16 +417,22 @@ spec:
                   key: password
             - name: POSTGRES_DB
               value: epidemic
+            # Ceph/RBD mounts expose lost+found at volume root; initdb refuses non-empty dir.
+            # Store cluster files in a subdirectory (see PostgreSQL image PGDATA docs).
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           resources:
             requests:
-              memory: "512Mi"
+              memory: "2Gi"
               cpu: "250m"
             limits:
-              memory: "1Gi"
+              memory: "4Gi"
               cpu: "1"
           volumeMounts:
             - name: pgdata
               mountPath: /var/lib/postgresql/data
+            - name: pg-run
+              mountPath: /var/run/postgresql
             - name: init-sql
               mountPath: /docker-entrypoint-initdb.d/001-database-init.sql
               subPath: database-init.sql
@@ -418,6 +441,8 @@ spec:
         - name: pgdata
           persistentVolumeClaim:
             claimName: timescaledb-pvc
+        - name: pg-run
+          emptyDir: {}
         - name: init-sql
           configMap:
             name: timescaledb-init-sql
