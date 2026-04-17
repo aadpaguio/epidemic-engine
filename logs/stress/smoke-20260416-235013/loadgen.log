@@ -1,0 +1,4 @@
+
+[notice] A new release of pip is available: 24.0 -> 26.0.1
+[notice] To update, run: pip install --upgrade pip
+{"tag": "LOADGEN", "topic": "ds551-s26.team02.raw.smoke-20260416-235013", "bootstrap": "kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092", "target_rate": 10.0, "events_sent": 600, "send_errors": 0, "ack_errors": 0, "ack_samples": 600, "duration_wall_s": 60.076, "actual_rate_per_s": 9.987, "ack_latency_ms_p50": 29953.914, "ack_latency_ms_p95": 56908.05, "ack_latency_ms_p99": 59303.948, "unroutable_pct": 5.0}

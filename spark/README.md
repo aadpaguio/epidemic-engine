@@ -4,17 +4,13 @@
 
 ## Computed analytics
 
-The job implements **five distinct hourly aggregations** in `spark/etl.py` (functions `build_feature_region_hourly` through `build_feature_symptom_hourly`). Each result set is written with **`mode("append")`** to the matching Timescale table (primary keys include `batch_id`).
+The job implements **five distinct hourly aggregations** in `spark/etl.py` (functions `build_feature_region_hourly` through `build_feature_symptom_hourly`). Each result set is written with `**mode("append")`** to the matching Timescale table (primary keys include `batch_id`).
 
-1. **`feature_region_hourly`** — Per hour and region, unions symptom, clinic, and hospital streams and aggregates event-type counts, severity and duration sums/counts, temperature sum/count, and `available_beds` gauge rollups (min, avg, last-by-event-time, sample count).
-
-2. **`feature_clinic_hourly`** — Per hour and clinic, counts visits and follow-ups, sums/counts temperatures, and rolls up `available_beds` gauge stats.
-
-3. **`feature_hospital_hourly`** — Per hour and hospital, counts admissions; sums/counts severity, temperature, oxygen, and expected length-of-stay; plus `available_beds` gauge rollups.
-
-4. **`feature_diagnosis_hourly`** — Per hour, clinic, and diagnosis code (clinic visits with non-null `diagnosis_code`), counts visits and aggregates temperature sum/count.
-
-5. **`feature_symptom_hourly`** — Per hour, region, and exploded symptom token, counts how often each token appears in that bucket.
+1. `**feature_region_hourly`** — Per hour and region, unions symptom, clinic, and hospital streams and aggregates event-type counts, severity and duration sums/counts, temperature sum/count, and `available_beds` gauge rollups (min, avg, last-by-event-time, sample count).
+2. `**feature_clinic_hourly`** — Per hour and clinic, counts visits and follow-ups, sums/counts temperatures, and rolls up `available_beds` gauge stats.
+3. `**feature_hospital_hourly`** — Per hour and hospital, counts admissions; sums/counts severity, temperature, oxygen, and expected length-of-stay; plus `available_beds` gauge rollups.
+4. `**feature_diagnosis_hourly`** — Per hour, clinic, and diagnosis code (clinic visits with non-null `diagnosis_code`), counts visits and aggregates temperature sum/count.
+5. `**feature_symptom_hourly`** — Per hour, region, and exploded symptom token, counts how often each token appears in that bucket.
 
 **Layer B (SQL only):** `infra/database-deployment.yaml` defines views such as `analytic_regional_disease_severity_trend` and `analytic_hospital_capacity_pressure` on top of these facts; they are evaluated in PostgreSQL/Timescale, not inside Spark.
 
@@ -41,7 +37,7 @@ Structured logs use prefix `[ANALYTICS]` (see Phase 2 plan).
 
 ## End-to-end on OpenShift: Phase 1 → Spark ETL
 
-Phase 1 fills the **typed topics**; Phase 2 reads those same topics. To run both with cleanup and waits in one shot, use **`scripts/run-phase1-and-phase2.sh`** (see **Run Phase 1 and Phase 2 (automation)** below). Manual steps:
+Phase 1 fills the **typed topics**; Phase 2 reads those same topics. To run both with cleanup and waits in one shot, use `**scripts/run-phase1-and-phase2.sh`** (see **Run Phase 1 and Phase 2 (automation)** below). Manual steps:
 
 Run in this order:
 
@@ -62,7 +58,7 @@ Run in this order:
    oc create configmap spark-etl-script --from-file=etl.py=spark/etl.py \
      --dry-run=client -o yaml | oc apply -n "$NAMESPACE" -f -
   ```
-6. **Database** — `infra/spark-job.yaml` wires JDBC using Secret **`epidemic-db-spark`** (username/password). For a dry run without writes, set env **`SKIP_JDBC_WRITE=true`** on the Job and omit JDBC usage in `etl.py`.
+6. **Database** — `infra/spark-job.yaml` wires JDBC using Secret `**epidemic-db-spark`** (username/password). For a dry run without writes, set env `**SKIP_JDBC_WRITE=true`** on the Job and omit JDBC usage in `etl.py`.
 7. **Run the Spark Job** — `oc apply -f infra/spark-job.yaml -n "$NAMESPACE"` then `**oc logs -f job/epidemic-spark-etl -n "$NAMESPACE"`**. You should see `**[ANALYTICS]`** lines (`kafka_read`, `parse`, `db_write`, `summary`). Topic env vars default to `**ds551-s26.team02.***` and should match Phase 1 output topic params.
 8. **Re-run** — Delete the Job before re-applying: `**oc delete job epidemic-spark-etl -n "$NAMESPACE"`**. Run another `**oc create -f tekton/pipelinerun.yaml`** to push more batches through Phase 1, then run the Spark Job again.
 
@@ -70,28 +66,30 @@ Run in this order:
 
 ## Run Phase 1 and Phase 2 (automation)
 
-From the **repository root**, with `oc login` done and **`oc project <namespace>`** set (same namespace as Kafka/Tekton/DB):
+From the **repository root**, with `oc login` done and `**oc project <namespace>`** set (same namespace as Kafka/Tekton/DB):
 
 ```bash
 chmod +x scripts/run-phase1-and-phase2.sh   # once
 ./scripts/run-phase1-and-phase2.sh
 ```
 
-The script **`scripts/run-phase1-and-phase2.sh`**:
+The script `**scripts/run-phase1-and-phase2.sh**`:
 
 - **Cleans up** the previous `epidemic-spark-etl` Job and (by default) **Succeeded** Phase 1 Task pods named like `phase1-run-*-validate-pod` / `phase1-run-*-route-and-enrich-pod` (helps quota and clutter).
-- **Phase 1:** `oc apply` for `tekton/tasks.yaml` and `tekton/pipeline.yaml`, **`oc create`** `tekton/pipelinerun.yaml`, then **`oc wait`** for the newest `PipelineRun` to succeed.
-- **Phase 2:** applies `infra/spark-rbac.yaml`, refreshes the `spark-etl-script` ConfigMap from `spark/etl.py`, applies `infra/spark-job.yaml`, waits for the Job to complete, and prints the last **`[ANALYTICS]`** lines from the job log.
+- **Phase 1:** `oc apply` for `tekton/tasks.yaml` and `tekton/pipeline.yaml`, `**oc create`** `tekton/pipelinerun.yaml`, then `**oc wait`** for the newest `PipelineRun` to succeed.
+- **Phase 2:** applies `infra/spark-rbac.yaml`, refreshes the `spark-etl-script` ConfigMap from `spark/etl.py`, applies `infra/spark-job.yaml`, waits for the Job to complete, and prints the last `**[ANALYTICS]`** lines from the job log.
 
 **Useful options:**
 
-| Flag | Effect |
-|------|--------|
-| `--truncate-db` | `TRUNCATE` the five `feature_*_hourly` tables before Spark (destructive). |
-| `--skip-phase1` | Only run Spark (typed topics must already have data). |
-| `--skip-phase2` | Only run Tekton. |
-| `--no-cleanup` | Skip Job delete and Succeeded-pod delete (still creates a new `PipelineRun` when Phase 1 runs). |
-| `--no-delete-phase1-pods` | Keep Succeeded Phase 1 Task pods. |
+
+| Flag                      | Effect                                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `--truncate-db`           | `TRUNCATE` the five `feature_*_hourly` tables before Spark (destructive).                       |
+| `--skip-phase1`           | Only run Spark (typed topics must already have data).                                           |
+| `--skip-phase2`           | Only run Tekton.                                                                                |
+| `--no-cleanup`            | Skip Job delete and Succeeded-pod delete (still creates a new `PipelineRun` when Phase 1 runs). |
+| `--no-delete-phase1-pods` | Keep Succeeded Phase 1 Task pods.                                                               |
+
 
 **Environment overrides:** `SPARK_JOB_NAME`, `PIPELINERUN_MANIFEST`, `DB_POD`, `DB_NAME`, `DB_USER`, `PHASE1_WAIT_TIMEOUT`, `SPARK_WAIT_TIMEOUT`.
 

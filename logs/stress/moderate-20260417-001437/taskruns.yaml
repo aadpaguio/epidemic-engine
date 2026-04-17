@@ -1,0 +1,528 @@
+apiVersion: v1
+items:
+- apiVersion: tekton.dev/v1
+  kind: TaskRun
+  metadata:
+    annotations:
+      chains.tekton.dev/signed: "true"
+      pipeline.tekton.dev/release: 8910674cb953317a4373f33822024b9de8c5fa22
+      results.tekton.dev/record: ds551-2026-spring-a5f0d1/results/bce3e790-58b0-476d-8fd6-e013b95a6dba/records/028233cb-f3f4-42a4-b187-d0161c4b8c5d
+      results.tekton.dev/result: ds551-2026-spring-a5f0d1/results/bce3e790-58b0-476d-8fd6-e013b95a6dba
+      results.tekton.dev/stored: "false"
+    creationTimestamp: "2026-04-17T04:31:03Z"
+    finalizers:
+    - chains.tekton.dev/taskrun
+    - results.tekton.dev/taskrun
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: tekton-pipelines
+      tekton.dev/memberOf: tasks
+      tekton.dev/pipeline: phase1-pipeline
+      tekton.dev/pipelineRun: phase1-stress-moderate-20260417-001437-lk98q
+      tekton.dev/pipelineRunUID: bce3e790-58b0-476d-8fd6-e013b95a6dba
+      tekton.dev/pipelineTask: route-and-enrich
+      tekton.dev/task: route-and-enrich
+    name: phase1-stress-moderate-20260417-001437-lk98q-route-and-enrich
+    namespace: ds551-2026-spring-a5f0d1
+    ownerReferences:
+    - apiVersion: tekton.dev/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: PipelineRun
+      name: phase1-stress-moderate-20260417-001437-lk98q
+      uid: bce3e790-58b0-476d-8fd6-e013b95a6dba
+    resourceVersion: "982263491"
+    uid: 028233cb-f3f4-42a4-b187-d0161c4b8c5d
+  spec:
+    params:
+    - name: kafka-bootstrap
+      value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
+    - name: input-topic
+      value: ds551-s26.team02.validated.moderate-20260417-001437
+    - name: symptom-topic
+      value: ds551-s26.team02.symptom_reports.moderate-20260417-001437
+    - name: clinic-topic
+      value: ds551-s26.team02.clinic_visits.moderate-20260417-001437
+    - name: hospital-topic
+      value: ds551-s26.team02.hospital_admissions.moderate-20260417-001437
+    - name: routing-dlq-topic
+      value: ds551-s26.team02.routing_dlq.moderate-20260417-001437
+    - name: team-id
+      value: team02
+    - name: batch-size
+      value: "400000"
+    - name: consumer-timeout-ms
+      value: "300000"
+    - name: consumer-group-id
+      value: team02-route-moderate-20260417-001437
+    serviceAccountName: pipeline
+    taskRef:
+      kind: Task
+      name: route-and-enrich
+    timeout: 1h0m0s
+  status:
+    artifacts: {}
+    completionTime: "2026-04-17T04:37:28Z"
+    conditions:
+    - lastTransitionTime: "2026-04-17T04:37:28Z"
+      message: All Steps have completed executing
+      reason: Succeeded
+      status: "True"
+      type: Succeeded
+    podName: phase1-stress-moderate-202604b572d979546b07f4049f0009eec2f9-pod
+    provenance:
+      featureFlags:
+        awaitSidecarReadiness: true
+        coschedule: workspaces
+        enableAPIFields: beta
+        enableProvenanceInStatus: true
+        enforceNonfalsifiability: none
+        maxResultSize: 4096
+        resultExtractionMethod: termination-message
+        runningInEnvWithInjectedSidecars: true
+        verificationNoMatchPolicy: ignore
+    startTime: "2026-04-17T04:31:06Z"
+    steps:
+    - container: step-route
+      imageID: docker.io/library/python@sha256:b596083aa14d47c78a652138aa9b98607585499d7c7ec343ae378f6c5770822d
+      name: route
+      provenance: {}
+      terminated:
+        containerID: cri-o://187e880654049fe635a2e79a4b2219bef2ce9ab64dcaab7601c0f2b134f6352a
+        exitCode: 0
+        finishedAt: "2026-04-17T04:37:27Z"
+        reason: Completed
+        startedAt: "2026-04-17T04:31:12Z"
+      terminationReason: Completed
+    taskSpec:
+      description: |
+        Consume validated events, enrich with team metadata, route to typed topics or routing DLQ.
+      params:
+      - name: kafka-bootstrap
+        type: string
+      - name: input-topic
+        type: string
+      - name: symptom-topic
+        type: string
+      - name: clinic-topic
+        type: string
+      - name: hospital-topic
+        type: string
+      - default: ""
+        name: routing-dlq-topic
+        type: string
+      - name: team-id
+        type: string
+      - default: "100"
+        name: batch-size
+        type: string
+      - default: "30000"
+        name: consumer-timeout-ms
+        type: string
+      - default: team02-route-group
+        name: consumer-group-id
+        type: string
+      steps:
+      - computeResources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        env:
+        - name: KAFKA_BOOTSTRAP
+          value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
+        - name: INPUT_TOPIC
+          value: ds551-s26.team02.validated.moderate-20260417-001437
+        - name: SYMPTOM_TOPIC
+          value: ds551-s26.team02.symptom_reports.moderate-20260417-001437
+        - name: CLINIC_TOPIC
+          value: ds551-s26.team02.clinic_visits.moderate-20260417-001437
+        - name: HOSPITAL_TOPIC
+          value: ds551-s26.team02.hospital_admissions.moderate-20260417-001437
+        - name: ROUTING_DLQ_TOPIC
+          value: ds551-s26.team02.routing_dlq.moderate-20260417-001437
+        - name: TEAM_ID
+          value: team02
+        - name: BATCH_SIZE
+          value: "400000"
+        - name: CONSUMER_TIMEOUT_MS
+          value: "300000"
+        - name: CONSUMER_GROUP_ID
+          value: team02-route-moderate-20260417-001437
+        image: python:3.11-slim
+        name: route
+        script: "set -e\npip install --no-cache-dir -q kafka-python-ng\nexec python
+          -u - <<'PY'\nimport base64\nimport hashlib\nimport json\nimport os\nfrom
+          datetime import datetime, timezone\n\nfrom kafka import KafkaConsumer, KafkaProducer\n\nTASK
+          = \"route-and-enrich\"\nPHASE = \"route\"\nGROUP = os.environ.get(\"CONSUMER_GROUP_ID\",
+          \"team02-route-group\")\nCONSUMER_TIMEOUT_MS = max(\n    0, int(os.environ.get(\"CONSUMER_TIMEOUT_MS\",
+          \"30000\"))\n)\n\nBOOTSTRAP = os.environ[\"KAFKA_BOOTSTRAP\"]\nINPUT_TOPIC
+          = os.environ[\"INPUT_TOPIC\"]\nSYMPTOM_TOPIC = os.environ[\"SYMPTOM_TOPIC\"]\nCLINIC_TOPIC
+          = os.environ[\"CLINIC_TOPIC\"]\nHOSPITAL_TOPIC = os.environ[\"HOSPITAL_TOPIC\"]\nDLQ_TOPIC
+          = os.environ.get(\"ROUTING_DLQ_TOPIC\", \"\").strip()\nTEAM_ID = os.environ[\"TEAM_ID\"]\nBATCH_SIZE
+          = max(0, int(os.environ.get(\"BATCH_SIZE\", \"100\")))\n\nTYPE_TO_TOPIC
+          = {\n    \"symptom_report\": SYMPTOM_TOPIC,\n    \"clinic_visit\": CLINIC_TOPIC,\n
+          \   \"hospital_admission\": HOSPITAL_TOPIC,\n}\n\ndef pipeline_log(\n    event_id,\n
+          \   outcome,\n    reason_code,\n    target_topic=None,\n    extra=None,\n):\n
+          \   payload = {\n        \"task\": TASK,\n        \"phase\": PHASE,\n        \"event_id\":
+          event_id,\n        \"outcome\": outcome,\n        \"reason_code\": reason_code,\n
+          \   }\n    if target_topic is not None:\n        payload[\"target_topic\"]
+          = target_topic\n    if extra:\n        payload.update(extra)\n    print(f\"[PIPELINE]
+          {json.dumps(payload)}\", flush=True)\n\ndef stable_key_from_raw(raw: bytes)
+          -> str:\n    return \"sha256-\" + hashlib.sha256(raw).hexdigest()\n\ndef
+          enrich(payload: dict) -> dict:\n    out = dict(payload)\n    out[\"team_id\"]
+          = TEAM_ID\n    out[\"processing_timestamp\"] = (\n        datetime.now(timezone.utc).isoformat().replace(\"+00:00\",
+          \"Z\")\n    )\n    out[\"event_source\"] = \"ds551-event-generator\"\n    return
+          out\n\ndef send_routing_dlq(\n    producer,\n    key: str | None,\n    envelope:
+          dict,\n) -> tuple[bool, bool]:\n    \"\"\"Returns (sent_to_dlq, had_produce_error).\"\"\"\n
+          \   if not DLQ_TOPIC:\n        return False, False\n    try:\n        producer.send(DLQ_TOPIC,
+          key=key, value=envelope)\n        return True, False\n    except Exception
+          as pe:\n        pipeline_log(\n            key,\n            \"error\",\n
+          \           \"PRODUCE_FAILED\",\n            DLQ_TOPIC,\n            {\"error\":
+          str(pe)},\n        )\n        return False, True\n\nconsumer_kwargs = dict(\n
+          \   bootstrap_servers=BOOTSTRAP,\n    group_id=GROUP,\n    auto_offset_reset=\"earliest\",\n
+          \   value_deserializer=lambda b: b,\n    enable_auto_commit=True,\n)\nif
+          CONSUMER_TIMEOUT_MS > 0:\n    consumer_kwargs[\"consumer_timeout_ms\"] =
+          CONSUMER_TIMEOUT_MS\nconsumer = KafkaConsumer(INPUT_TOPIC, **consumer_kwargs)\nproducer
+          = KafkaProducer(\n    bootstrap_servers=BOOTSTRAP,\n    value_serializer=lambda
+          v: json.dumps(v, default=str).encode(\"utf-8\"),\n    key_serializer=lambda
+          k: k.encode(\"utf-8\") if k is not None else None,\n)\n\ntotal_consumed
+          = valid_count = dlq_count = error_count = 0\nsilent_dropped = 0\nsummary_status
+          = \"\"\n\ntry:\n    while total_consumed < BATCH_SIZE:\n        poll_timeout
+          = CONSUMER_TIMEOUT_MS if CONSUMER_TIMEOUT_MS > 0 else 30000\n        packs
+          = consumer.poll(timeout_ms=poll_timeout)\n        if not packs:\n            break\n
+          \       for _tp, records in packs.items():\n            for rec in records:\n
+          \               if total_consumed >= BATCH_SIZE:\n                    break\n
+          \               total_consumed += 1\n                raw = rec.value if
+          rec.value is not None else b\"\"\n                part = rec.partition\n
+          \               off = rec.offset\n\n                try:\n                    obj
+          = json.loads(raw.decode(\"utf-8\"))\n                except json.JSONDecodeError
+          as e:\n                    kid = stable_key_from_raw(raw)\n                    pipeline_log(\n
+          \                       kid,\n                        \"dlq\",\n                        \"JSON_PARSE\",\n
+          \                       DLQ_TOPIC or None,\n                        {\"parse_error\":
+          str(e)},\n                    )\n                    envelope = {\n                        \"failure_reason\":
+          str(e),\n                        \"reason_code\": \"JSON_PARSE\",\n                        \"failed_at\":
+          datetime.now(timezone.utc)\n                        .isoformat()\n                        .replace(\"+00:00\",
+          \"Z\"),\n                        \"original_value_b64\": base64.b64encode(raw).decode(\n
+          \                           \"ascii\"\n                        ),\n                        \"original_partition\":
+          part,\n                        \"original_offset\": off,\n                    }\n
+          \                   sent, perr = send_routing_dlq(producer, kid, envelope)\n
+          \                   if perr:\n                        error_count += 1\n
+          \                   elif sent:\n                        dlq_count += 1\n
+          \                   else:\n                        dlq_count += 1\n                    continue\n\n
+          \               if not isinstance(obj, dict):\n                    eid =
+          None\n                    kid = stable_key_from_raw(raw)\n                    rc
+          = \"JSON_PARSE\"\n                    pipeline_log(\n                        kid,\n
+          \                       \"dlq\",\n                        rc,\n                        DLQ_TOPIC
+          or None,\n                    )\n                    envelope = {\n                        \"failure_reason\":
+          \"payload is not a JSON object\",\n                        \"reason_code\":
+          rc,\n                        \"failed_at\": datetime.now(timezone.utc)\n
+          \                       .isoformat()\n                        .replace(\"+00:00\",
+          \"Z\"),\n                        \"original_value_b64\": base64.b64encode(raw).decode(\n
+          \                           \"ascii\"\n                        ),\n                        \"original_partition\":
+          part,\n                        \"original_offset\": off,\n                    }\n
+          \                   sent, perr = send_routing_dlq(producer, kid, envelope)\n
+          \                   if perr:\n                        error_count += 1\n
+          \                   elif sent:\n                        dlq_count += 1\n
+          \                   else:\n                        dlq_count += 1\n                    continue\n\n
+          \               eid = obj.get(\"event_id\")\n                eid_str = str(eid)
+          if eid is not None else None\n                kid = eid_str if eid_str else
+          stable_key_from_raw(raw)\n\n                et = obj.get(\"event_type\")\n
+          \               target = TYPE_TO_TOPIC.get(et) if et is not None else None\n\n
+          \               # INSTRUCTIONS.md Stage 2 — unroutable types: silent drop
+          (no topic, no DLQ).\n                if target is None:\n                    silent_dropped
+          += 1\n                    continue\n\n                enriched = enrich(obj)\n
+          \               try:\n                    producer.send(target, key=kid,
+          value=enriched)\n                    valid_count += 1\n                    pipeline_log(\n
+          \                       eid_str,\n                        \"valid\",\n                        \"OK\",\n
+          \                       target,\n                    )\n                except
+          Exception as pe:\n                    pipeline_log(\n                        eid_str,\n
+          \                       \"error\",\n                        \"PRODUCE_FAILED\",\n
+          \                       target,\n                        {\"error\": str(pe)},\n
+          \                   )\n                    envelope = {\n                        \"failure_reason\":
+          str(pe),\n                        \"reason_code\": \"PRODUCE_FAILED\",\n
+          \                       \"target_topic\": target,\n                        \"payload\":
+          enriched,\n                        \"failed_at\": datetime.now(timezone.utc)\n
+          \                       .isoformat()\n                        .replace(\"+00:00\",
+          \"Z\"),\n                        \"original_partition\": part,\n                        \"original_offset\":
+          off,\n                    }\n                    sent, perr = send_routing_dlq(producer,
+          kid, envelope)\n                    if perr:\n                        error_count
+          += 1\n                    elif sent:\n                        dlq_count
+          += 1\n                    else:\n                        dlq_count += 1\n
+          \           if total_consumed >= BATCH_SIZE:\n                break\n        if
+          total_consumed >= BATCH_SIZE:\n            break\nexcept:\n    summary_status=\"failed\"\nfinally:\n
+          \   producer.flush()\n    assignment = consumer.assignment()\n    positions
+          = {}\n    for tp in assignment:\n        positions[f\"{tp.topic}:{tp.partition}\"]
+          = consumer.position(tp)\n    consumer.close()\n\nif summary_status!=\"failed\":\n
+          \   if (error_count==0) and (dlq_count==0): \n        summary_status=\"healthy\"\n
+          \   else: \n        summary_status=\"degraded\"\n\nsummary = {\n    \"task\":
+          TASK,\n    \"phase\": PHASE,\n    \"status\": summary_status,\n    \"total_consumed\":
+          total_consumed,\n    \"valid_count\": valid_count,\n    \"silent_dropped\":
+          silent_dropped,\n    \"dlq_count\": dlq_count,\n    \"error_count\": error_count,\n
+          \   \"final_positions\": positions,\n}\nprint(f\"[PIPELINE] {json.dumps(summary)}\",
+          flush=True)\nprint(\n    \"SUMMARY route-and-enrich: \"\n    f\"status={summary_status}
+          \"\n    f\"consumed={total_consumed} valid={valid_count} \"\n    f\"silent_dropped={silent_dropped}
+          dlq={dlq_count} errors={error_count}\",\n    flush=True,\n)\nPY\n"
+- apiVersion: tekton.dev/v1
+  kind: TaskRun
+  metadata:
+    annotations:
+      chains.tekton.dev/signed: "true"
+      pipeline.tekton.dev/release: 8910674cb953317a4373f33822024b9de8c5fa22
+      results.tekton.dev/childReadyForDeletion: "true"
+      results.tekton.dev/record: ds551-2026-spring-a5f0d1/results/bce3e790-58b0-476d-8fd6-e013b95a6dba/records/af83b405-cb65-4758-8768-d3d2c69475ad
+      results.tekton.dev/result: ds551-2026-spring-a5f0d1/results/bce3e790-58b0-476d-8fd6-e013b95a6dba
+      results.tekton.dev/stored: "true"
+    creationTimestamp: "2026-04-17T04:24:50Z"
+    finalizers:
+    - chains.tekton.dev/taskrun
+    - results.tekton.dev/taskrun
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: tekton-pipelines
+      tekton.dev/memberOf: tasks
+      tekton.dev/pipeline: phase1-pipeline
+      tekton.dev/pipelineRun: phase1-stress-moderate-20260417-001437-lk98q
+      tekton.dev/pipelineRunUID: bce3e790-58b0-476d-8fd6-e013b95a6dba
+      tekton.dev/pipelineTask: validate
+      tekton.dev/task: validate-events
+    name: phase1-stress-moderate-20260417-001437-lk98q-validate
+    namespace: ds551-2026-spring-a5f0d1
+    ownerReferences:
+    - apiVersion: tekton.dev/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: PipelineRun
+      name: phase1-stress-moderate-20260417-001437-lk98q
+      uid: bce3e790-58b0-476d-8fd6-e013b95a6dba
+    resourceVersion: "982246944"
+    uid: af83b405-cb65-4758-8768-d3d2c69475ad
+  spec:
+    params:
+    - name: kafka-bootstrap
+      value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
+    - name: input-topic
+      value: ds551-s26.team02.raw.moderate-20260417-001437
+    - name: output-topic
+      value: ds551-s26.team02.validated.moderate-20260417-001437
+    - name: validate-dlq-topic
+      value: ds551-s26.team02.validate_dlq.moderate-20260417-001437
+    - name: batch-size
+      value: "400000"
+    - name: consumer-timeout-ms
+      value: "300000"
+    - name: consumer-group-id
+      value: team02-validate-moderate-20260417-001437
+    serviceAccountName: pipeline
+    taskRef:
+      kind: Task
+      name: validate-events
+    timeout: 1h0m0s
+  status:
+    artifacts: {}
+    completionTime: "2026-04-17T04:31:03Z"
+    conditions:
+    - lastTransitionTime: "2026-04-17T04:31:03Z"
+      message: All Steps have completed executing
+      reason: Succeeded
+      status: "True"
+      type: Succeeded
+    podName: phase1-stress-moderate-20260417-001437-lk98q-validate-pod
+    provenance:
+      featureFlags:
+        awaitSidecarReadiness: true
+        coschedule: workspaces
+        enableAPIFields: beta
+        enableProvenanceInStatus: true
+        enforceNonfalsifiability: none
+        maxResultSize: 4096
+        resultExtractionMethod: termination-message
+        runningInEnvWithInjectedSidecars: true
+        verificationNoMatchPolicy: ignore
+    startTime: "2026-04-17T04:24:51Z"
+    steps:
+    - container: step-validate
+      imageID: docker.io/library/python@sha256:b596083aa14d47c78a652138aa9b98607585499d7c7ec343ae378f6c5770822d
+      name: validate
+      provenance: {}
+      terminated:
+        containerID: cri-o://445fe3f9739f7e21dc3538d772bdae28386d5c02ccd521d9d3359e0ce0fee9be
+        exitCode: 0
+        finishedAt: "2026-04-17T04:31:02Z"
+        reason: Completed
+        startedAt: "2026-04-17T04:24:57Z"
+      terminationReason: Completed
+    taskSpec:
+      description: |
+        Consume raw Kafka events, validate schema, produce valid records to output topic and invalid ones to validate DLQ. Event stream does not necessarily contain event_id; this task assigns evt-<uuid> before validation so the pipeline can run end-to-end.
+      params:
+      - name: kafka-bootstrap
+        type: string
+      - name: input-topic
+        type: string
+      - name: output-topic
+        type: string
+      - default: ""
+        name: validate-dlq-topic
+        type: string
+      - default: "100"
+        name: batch-size
+        type: string
+      - default: "30000"
+        name: consumer-timeout-ms
+        type: string
+      - default: team02-validate-group
+        name: consumer-group-id
+        type: string
+      steps:
+      - computeResources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        env:
+        - name: KAFKA_BOOTSTRAP
+          value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
+        - name: INPUT_TOPIC
+          value: ds551-s26.team02.raw.moderate-20260417-001437
+        - name: OUTPUT_TOPIC
+          value: ds551-s26.team02.validated.moderate-20260417-001437
+        - name: VALIDATE_DLQ_TOPIC
+          value: ds551-s26.team02.validate_dlq.moderate-20260417-001437
+        - name: BATCH_SIZE
+          value: "400000"
+        - name: CONSUMER_TIMEOUT_MS
+          value: "300000"
+        - name: CONSUMER_GROUP_ID
+          value: team02-validate-moderate-20260417-001437
+        image: python:3.11-slim
+        name: validate
+        script: "set -e\npip install --no-cache-dir -q kafka-python-ng\nexec python
+          -u - <<'PY'\nimport base64\nimport hashlib\nimport json\nimport os\nimport
+          re\nimport uuid\nfrom datetime import datetime, timezone\n\nfrom kafka import
+          KafkaConsumer, KafkaProducer\n\nTASK = \"validate-events\"\nPHASE = \"validate\"\nGROUP
+          = os.environ.get(\"CONSUMER_GROUP_ID\", \"team02-validate-group\")\nCONSUMER_TIMEOUT_MS
+          = max(\n    0, int(os.environ.get(\"CONSUMER_TIMEOUT_MS\", \"30000\"))\n)\n\nBOOTSTRAP
+          = os.environ[\"KAFKA_BOOTSTRAP\"]\nINPUT_TOPIC = os.environ[\"INPUT_TOPIC\"]\nOUTPUT_TOPIC
+          = os.environ[\"OUTPUT_TOPIC\"]\nDLQ_TOPIC = os.environ.get(\"VALIDATE_DLQ_TOPIC\",
+          \"\").strip()\nBATCH_SIZE = max(0, int(os.environ.get(\"BATCH_SIZE\", \"100\")))\n\n#
+          INSTRUCTIONS.md Stage 1 — required base fields; event_type routing is Stage
+          2.\nREQUIRED_FIELDS = (\n    \"event_type\",\n    \"timestamp\",\n    \"region\",\n)\n_EVENT_ID_RE
+          = re.compile(rb'\"event_id\"\\s*:\\s*\"([^\"]*)\"')\n\ndef pipeline_log(\n
+          \   event_id,\n    outcome,\n    reason_code,\n    target_topic=None,\n
+          \   extra=None,\n):\n    payload = {\n        \"task\": TASK,\n        \"phase\":
+          PHASE,\n        \"event_id\": event_id,\n        \"outcome\": outcome,\n
+          \       \"reason_code\": reason_code,\n    }\n    if target_topic is not
+          None:\n        payload[\"target_topic\"] = target_topic\n    if extra:\n
+          \       payload.update(extra)\n    print(f\"[PIPELINE] {json.dumps(payload)}\",
+          flush=True)\n\ndef stable_key_from_raw(raw: bytes) -> str:\n    return \"sha256-\"
+          + hashlib.sha256(raw).hexdigest()\n\ndef try_extract_event_id(raw: bytes)
+          -> str | None:\n    m = _EVENT_ID_RE.search(raw)\n    if m:\n        return
+          m.group(1).decode(\"utf-8\", errors=\"replace\")\n    return None\n\n# Synthetic
+          id generator: generator payloads did not include event_id; spec still expects
+          it for validated output.\ndef synthesize_event_id_if_missing(obj: dict)
+          -> bool:\n    \"\"\"Assign evt-<uuid> when event_id is missing or blank.
+          Returns True if assigned.\"\"\"\n    eid = obj.get(\"event_id\")\n    missing
+          = (\n        eid is None\n        or eid == \"\"\n        or (isinstance(eid,
+          str) and eid.strip() == \"\")\n    )\n    if missing:\n        obj[\"event_id\"]
+          = f\"evt-{uuid.uuid4()}\"\n        return True\n    return False\n\ndef
+          validate_obj(obj) -> tuple[bool, str | None, str | None]:\n    \"\"\"Returns
+          (ok, reason_code, event_id_str).\"\"\"\n    if not isinstance(obj, dict):\n
+          \       return False, \"JSON_PARSE\", None\n\n    eid = obj.get(\"event_id\")\n
+          \   eid_str = str(eid) if eid is not None else None\n\n    for field in
+          REQUIRED_FIELDS:\n        if field not in obj or obj[field] in (None, \"\"):\n
+          \           return False, f\"MISSING_FIELD:{field}\", eid_str\n\n    ts
+          = obj[\"timestamp\"]\n    if not isinstance(ts, str):\n        return False,
+          \"BAD_TIMESTAMP\", eid_str\n    try:\n        norm = ts.replace(\"Z\", \"+00:00\")
+          if ts.endswith(\"Z\") else ts\n        datetime.fromisoformat(norm)\n    except
+          Exception:\n        return False, \"BAD_TIMESTAMP\", eid_str\n\n    return
+          True, None, eid_str\n\nconsumer_kwargs = dict(\n    bootstrap_servers=BOOTSTRAP,\n
+          \   group_id=GROUP,\n    auto_offset_reset=\"earliest\",\n    value_deserializer=lambda
+          b: b,\n    enable_auto_commit=True,\n)\nif CONSUMER_TIMEOUT_MS > 0:\n    consumer_kwargs[\"consumer_timeout_ms\"]
+          = CONSUMER_TIMEOUT_MS\nconsumer = KafkaConsumer(INPUT_TOPIC, **consumer_kwargs)\nproducer
+          = KafkaProducer(\n    bootstrap_servers=BOOTSTRAP,\n    value_serializer=lambda
+          v: json.dumps(v, default=str).encode(\"utf-8\"),\n    key_serializer=lambda
+          k: k.encode(\"utf-8\") if k is not None else None,\n)\n\ntotal_consumed
+          = valid_count = dlq_count = error_count = 0\nsummary_status = \"\"\n\ntry:\n
+          \   while total_consumed < BATCH_SIZE:\n        poll_timeout = CONSUMER_TIMEOUT_MS
+          if CONSUMER_TIMEOUT_MS > 0 else 30000\n        packs = consumer.poll(timeout_ms=poll_timeout)\n
+          \       if not packs:\n            break\n        for _tp, records in packs.items():\n
+          \           for rec in records:\n                if total_consumed >= BATCH_SIZE:\n
+          \                   break\n                total_consumed += 1\n                raw
+          = rec.value if rec.value is not None else b\"\"\n                #oid =
+          try_extract_event_id(raw)\n                part = rec.partition\n                off
+          = rec.offset\n\n                try:\n                    obj = json.loads(raw.decode(\"utf-8\"))\n
+          \               except json.JSONDecodeError as e:\n                    rc
+          = \"JSON_PARSE\"\n                    eid = stable_key_from_raw(raw)\n                    kid
+          = eid \n                    pipeline_log(\n                        eid,\n
+          \                       \"dlq\",\n                        rc,\n                        DLQ_TOPIC
+          or None,\n                        {\"parse_error\": str(e)},\n                    )\n
+          \                   envelope = {\n                        \"failure_reason\":
+          str(e),\n                        \"reason_code\": rc,\n                        \"failed_at\":
+          datetime.now(timezone.utc)\n                        .isoformat()\n                        .replace(\"+00:00\",
+          \"Z\"),\n                        \"original_value_b64\": base64.b64encode(raw).decode(\n
+          \                           \"ascii\"\n                        ),\n                        \"original_partition\":
+          part,\n                        \"original_offset\": off,\n                    }\n
+          \                   if DLQ_TOPIC:\n                        try:\n                            producer.send(\n
+          \                               DLQ_TOPIC,\n                                key=kid,\n
+          \                               value=envelope,\n                            )\n
+          \                           dlq_count += 1\n                        except
+          Exception as pe:\n                            error_count += 1\n                            pipeline_log(\n
+          \                               kid,\n                                \"error\",\n
+          \                               \"PRODUCE_FAILED\",\n                                DLQ_TOPIC,\n
+          \                               {\"error\": str(pe)},\n                            )\n
+          \                   else:\n                        dlq_count += 1\n                    continue\n\n
+          \               # Run after JSON parse, before validate_obj (so required
+          event_id can be satisfied).\n                synthesized_id = synthesize_event_id_if_missing(obj)\n
+          \               ok, reason_code, eid = validate_obj(obj)\n                kid
+          = eid if eid else stable_key_from_raw(raw)\n\n                if ok:\n                    try:\n
+          \                       producer.send(\n                            OUTPUT_TOPIC,\n
+          \                           key=eid,\n                            value=obj,\n
+          \                       )\n                        valid_count += 1\n                        pipeline_log(\n
+          \                           eid,\n                            \"valid\",\n
+          \                           \"OK\",\n                            OUTPUT_TOPIC,\n
+          \                           (\n                                {\"event_id_source\":
+          \"synthetic\"}\n                                if synthesized_id\n                                else
+          None\n                            ),\n                        )\n                    except
+          Exception as pe:\n                        error_count += 1\n                        pipeline_log(\n
+          \                           eid,\n                            \"error\",\n
+          \                           \"PRODUCE_FAILED\",\n                            OUTPUT_TOPIC,\n
+          \                           {\"error\": str(pe)},\n                        )\n
+          \                   continue\n\n                pipeline_log(\n                    eid,\n
+          \                   \"dlq\",\n                    reason_code,\n                    DLQ_TOPIC
+          or None,\n                )\n                envelope = {\n                    \"failure_reason\":
+          reason_code,\n                    \"reason_code\": reason_code,\n                    \"failed_at\":
+          datetime.now(timezone.utc)\n                    .isoformat()\n                    .replace(\"+00:00\",
+          \"Z\"),\n                    \"original_value_b64\": base64.b64encode(raw).decode(\n
+          \                       \"ascii\"\n                    ),\n                    \"original_partition\":
+          part,\n                    \"original_offset\": off,\n                }\n
+          \               if DLQ_TOPIC:\n                    try:\n                        producer.send(\n
+          \                           DLQ_TOPIC,\n                            key=kid,\n
+          \                           value=envelope,\n                        )\n
+          \                       dlq_count += 1\n                    except Exception
+          as pe:\n                        error_count += 1\n                        pipeline_log(\n
+          \                           kid,\n                            \"error\",\n
+          \                           \"PRODUCE_FAILED\",\n                            DLQ_TOPIC,\n
+          \                           {\"error\": str(pe)},\n                        )\n
+          \               else:\n                    dlq_count += 1\n            if
+          total_consumed >= BATCH_SIZE:\n                break\n        if total_consumed
+          >= BATCH_SIZE:\n            break\nexcept: \n    summary_status=\"failed\"\nfinally:\n
+          \   producer.flush()\n    assignment = consumer.assignment()\n    positions
+          = {}\n    for tp in assignment:\n        positions[f\"{tp.topic}:{tp.partition}\"]
+          = consumer.position(tp)\n    consumer.close()\n\nif summary_status!=\"failed\":\n
+          \   if (error_count==0) and (dlq_count==0): \n        summary_status=\"healthy\"\n
+          \   else: \n        summary_status=\"degraded\"\n\nsummary = {\n    \"task\":
+          TASK,\n    \"phase\": PHASE,\n    \"status\": summary_status,\n    \"total_consumed\":
+          total_consumed,\n    \"valid_count\": valid_count,\n    \"dlq_count\": dlq_count,\n
+          \   \"error_count\": error_count,\n    \"final_positions\": positions,\n}\nprint(f\"[PIPELINE]
+          {json.dumps(summary)}\", flush=True)\nprint(\n    \"SUMMARY validate-events:
+          \"\n    f\"status={summary_status} \"\n    f\"consumed={total_consumed}
+          valid={valid_count} \"\n    f\"dlq={dlq_count} errors={error_count}\",\n
+          \   flush=True,\n)\nPY\n"
+kind: List
+metadata:
+  resourceVersion: ""

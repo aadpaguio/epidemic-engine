@@ -104,5 +104,6 @@ Additional folders and files will be added later as the project grows.
 - **Kafka Tips:** `docs/kafka-tips.md`
 - **Spark Tips:** `docs/spark-tips.md`
 - **Spark ETL (deploy / redeploy / test):** `spark/README.md` (includes OpenShift Job iteration commands)
+- **Phase 2 stress-test report (R5b):** `docs/phase2-stress-test.md`
 - **Tekton Tips:** `docs/tekton-tips.md`
 - **Phase 1 Pipeline Notes:** create `tekton/README.md` as part of your submission

@@ -8,12 +8,14 @@ This test drives **controlled-rate** synthetic traffic into your **raw** topic s
 - Kafka bootstrap hostname that **resolves inside the cluster** (same value as `kafka-bootstrap` in `tekton/pipelinerun.yaml`).
 - Raw topic name, e.g. `ds551-s26.team02.raw` (adjust for your team).
 
+**Repo files this doc refers to:** `loadgen/produce.py` (producer), `infra/loadgen-job.yaml` (Job that mounts ConfigMap `loadgen-produce-script`).
+
 ## What the script sends
 
-`loadgen/produce.py` emits JSON objects that satisfy Phase 1 **validate-events** required fields (`event_type`, `timestamp`, `region`). By default:
+`loadgen/produce.py` emits JSON objects that satisfy Phase 1 **validate-events** required fields (`event_type`, `timestamp`, `region`). By default `**LOADGEN_UNROUTABLE_PCT=5`**:
 
-- **~95%** routable events: `symptom_report`, `clinic_visit`, `hospital_admission` (with fields aligned to `INSTRUCTIONS.md`).
-- **~5%** `general_health_report` (unroutable; **silent drop** in `route-and-enrich`, same as the course generator).
+- **~95%** routable events among `symptom_report`, `clinic_visit`, and `hospital_admission` (fields aligned with `INSTRUCTIONS.md`), with an internal **~45% / ~30% / ~25%** split across those three types (not equal thirds).
+- **~5%** `general_health_report` (unroutable; **silent drop** in `route-and-enrich`, same pattern as the course generator).
 
 Override the unroutable share with `--unroutable-pct` or `LOADGEN_UNROUTABLE_PCT`.
 
@@ -36,15 +38,22 @@ oc apply -n "$NAMESPACE" -f infra/loadgen-job.yaml
 oc logs -f job/loadgen-raw-kafka -n "$NAMESPACE"
 ```
 
-The job prints **one JSON summary line** (prefix implied by content: `"tag":"LOADGEN"`) with:
+The job prints **one JSON summary line** (`"tag":"LOADGEN"`). Important fields:
 
-| Field | Meaning |
-| ----- | ------- |
-| `target_rate` | Requested events/sec |
-| `actual_rate_per_s` | `events_sent / duration_wall_s` |
-| `duration_wall_s` | Wall time for the run |
-| `ack_latency_ms_p50` / `p95` / `p99` | Broker ack latency from send to future completion |
-| `send_errors` / `ack_errors` | Producer failures |
+
+| Field                                | Meaning                                                 |
+| ------------------------------------ | ------------------------------------------------------- |
+| `events_sent`                        | Messages handed to the producer loop (attempted sends)  |
+| `target_rate`                        | Requested events/sec                                    |
+| `actual_rate_per_s`                  | `events_sent / duration_wall_s`                         |
+| `duration_wall_s`                    | Wall time for the run                                   |
+| `ack_latency_ms_p50` / `p95` / `p99` | Broker ack latency (ms) from send to future completion  |
+| `ack_samples`                        | Successful acks used for latency percentiles            |
+| `send_errors` / `ack_errors`         | Producer send failures / futures that failed on `get()` |
+| `unroutable_pct`                     | Percent configured for `general_health_report` mix      |
+
+
+Also present: `tag`, `topic`, `bootstrap`. Exit code **0** only if both error counts are zero.
 
 **Re-run:** Kubernetes Jobs are immutable; replace the job before another run:
 
@@ -55,17 +64,21 @@ oc apply -n "$NAMESPACE" -f infra/loadgen-job.yaml
 
 ### Environment variables (Job or shell)
 
-| Variable | Required | Description |
-| -------- | -------- | ----------- |
-| `KAFKA_BOOTSTRAP` | yes | Broker list, e.g. `kafka....svc.cluster.local:9092` |
-| `LOADGEN_TOPIC` | no | Raw topic (default `ds551-s26.team02.raw` or `TOPIC_RAW`) |
-| `LOADGEN_RATE` | no | Target events/sec (default `10`) |
-| `LOADGEN_COUNT` | one of count/duration | Stop after N events |
-| `LOADGEN_DURATION_SEC` | one of count/duration | Run for N seconds |
-| `LOADGEN_UNROUTABLE_PCT` | no | Percent unroutable events (default `5`) |
-| `LOADGEN_SEED` | no | RNG seed for reproducible mixes |
 
-Use **either** `LOADGEN_COUNT` **or** `LOADGEN_DURATION_SEC`, not both.
+| Variable                 | Required              | Description                                               |
+| ------------------------ | --------------------- | --------------------------------------------------------- |
+| `KAFKA_BOOTSTRAP`        | yes                   | Broker list, e.g. `kafka....svc.cluster.local:9092`       |
+| `LOADGEN_TOPIC`          | no                    | Raw topic (default `ds551-s26.team02.raw` or `TOPIC_RAW`) |
+| `LOADGEN_RATE`           | no                    | Target events/sec (default `10`)                          |
+| `LOADGEN_COUNT`          | one of count/duration | Stop after N events                                       |
+| `LOADGEN_DURATION_SEC`   | one of count/duration | Run for N seconds                                         |
+| `LOADGEN_UNROUTABLE_PCT` | no                    | Percent unroutable events (default `5`)                   |
+| `LOADGEN_SEED`           | no                    | RNG seed for reproducible mixes                           |
+
+
+Use **either** `LOADGEN_COUNT` **or** `LOADGEN_DURATION_SEC`, not both (the script errors if both are set).
+
+CLI equivalents: `--bootstrap`, `--topic`, `--rate`, `--count`, `--duration`, `--unroutable-pct`, `--seed` (see `python loadgen/produce.py --help`).
 
 ## Run locally (only if Kafka is reachable)
 
@@ -93,4 +106,4 @@ After loading raw, **drain with Phase 1**: increase `batch-size` in a `PipelineR
 - **Backlog / batch pipeline:** With Tekton capped at `batch-size` per run, a fast generator creates **lag on raw**. Stress testing here answers “how long to drain N messages” and “what breaks first (timeouts, OOM, DLQ volume)?”, not “50 ms event latency.”
 - **Downstream:** Typed topic size and Spark job wall time scale with how much you produced and how much Phase 1 routed.
 
-Document those layers separately in `docs/phase2-stress-test.md` so graders can follow cause and effect.
+For Phase 2 submission, capture those layers in your stress-test write-up (e.g. `docs/phase2-stress-test.md` if required by the rubric) so graders can follow cause and effect.

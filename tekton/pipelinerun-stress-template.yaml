@@ -1,0 +1,37 @@
+# Placeholders: __RUN_ID__, __BATCH_SIZE__, __CONSUMER_TIMEOUT_MS__
+# Substituted by scripts/run-phase1-stress-suite.sh (do not oc apply this file raw).
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: phase1-stress-__RUN_ID__-
+spec:
+  pipelineRef:
+    name: phase1-pipeline
+  params:
+    - name: kafka-bootstrap
+      value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
+    - name: input-topic
+      value: ds551-s26.team02.raw.__RUN_ID__
+    - name: validated-topic
+      value: ds551-s26.team02.validated.__RUN_ID__
+    - name: validate-dlq-topic
+      value: ds551-s26.team02.validate_dlq.__RUN_ID__
+    - name: symptom-topic
+      value: ds551-s26.team02.symptom_reports.__RUN_ID__
+    - name: clinic-topic
+      value: ds551-s26.team02.clinic_visits.__RUN_ID__
+    - name: hospital-topic
+      value: ds551-s26.team02.hospital_admissions.__RUN_ID__
+    - name: routing-dlq-topic
+      value: ds551-s26.team02.routing_dlq.__RUN_ID__
+    - name: team-id
+      value: team02
+    # Replaced by scripts/run-phase1-stress-suite.sh (defaults: 100000 / 300000).
+    - name: batch-size
+      value: "__BATCH_SIZE__"
+    - name: consumer-timeout-ms
+      value: "__CONSUMER_TIMEOUT_MS__"
+    - name: validate-consumer-group-id
+      value: team02-validate-__RUN_ID__
+    - name: route-consumer-group-id
+      value: team02-route-__RUN_ID__

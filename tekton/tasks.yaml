@@ -23,6 +23,9 @@ spec:
     - name: consumer-timeout-ms
       type: string
       default: "30000"
+    - name: consumer-group-id
+      type: string
+      default: "team02-validate-group"
   steps:
     - name: validate
       image: python:3.11-slim
@@ -47,6 +50,8 @@ spec:
           value: $(params.batch-size)
         - name: CONSUMER_TIMEOUT_MS
           value: $(params.consumer-timeout-ms)
+        - name: CONSUMER_GROUP_ID
+          value: $(params.consumer-group-id)
       script: |
         set -e
         pip install --no-cache-dir -q kafka-python-ng
@@ -63,7 +68,7 @@ spec:
 
         TASK = "validate-events"
         PHASE = "validate"
-        GROUP = "team02-validate-group"
+        GROUP = os.environ.get("CONSUMER_GROUP_ID", "team02-validate-group")
         CONSUMER_TIMEOUT_MS = max(
             0, int(os.environ.get("CONSUMER_TIMEOUT_MS", "30000"))
         )
@@ -371,6 +376,9 @@ spec:
     - name: consumer-timeout-ms
       type: string
       default: "30000"
+    - name: consumer-group-id
+      type: string
+      default: "team02-route-group"
   steps:
     - name: route
       image: python:3.11-slim
@@ -400,6 +408,8 @@ spec:
           value: $(params.batch-size)
         - name: CONSUMER_TIMEOUT_MS
           value: $(params.consumer-timeout-ms)
+        - name: CONSUMER_GROUP_ID
+          value: $(params.consumer-group-id)
       script: |
         set -e
         pip install --no-cache-dir -q kafka-python-ng
@@ -414,7 +424,7 @@ spec:
 
         TASK = "route-and-enrich"
         PHASE = "route"
-        GROUP = "team02-route-group"
+        GROUP = os.environ.get("CONSUMER_GROUP_ID", "team02-route-group")
         CONSUMER_TIMEOUT_MS = max(
             0, int(os.environ.get("CONSUMER_TIMEOUT_MS", "30000"))
         )

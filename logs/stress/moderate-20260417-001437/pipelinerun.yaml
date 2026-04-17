@@ -1,0 +1,164 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    chains.tekton.dev/signed: "true"
+    results.tekton.dev/record: ds551-2026-spring-a5f0d1/results/bce3e790-58b0-476d-8fd6-e013b95a6dba/records/bce3e790-58b0-476d-8fd6-e013b95a6dba
+    results.tekton.dev/result: ds551-2026-spring-a5f0d1/results/bce3e790-58b0-476d-8fd6-e013b95a6dba
+    results.tekton.dev/stored: "true"
+  creationTimestamp: "2026-04-17T04:24:50Z"
+  finalizers:
+  - results.tekton.dev/pipelinerun
+  - chains.tekton.dev/pipelinerun
+  generateName: phase1-stress-moderate-20260417-001437-
+  generation: 1
+  labels:
+    tekton.dev/pipeline: phase1-pipeline
+  name: phase1-stress-moderate-20260417-001437-lk98q
+  namespace: ds551-2026-spring-a5f0d1
+  resourceVersion: "982263509"
+  uid: bce3e790-58b0-476d-8fd6-e013b95a6dba
+spec:
+  params:
+  - name: kafka-bootstrap
+    value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
+  - name: input-topic
+    value: ds551-s26.team02.raw.moderate-20260417-001437
+  - name: validated-topic
+    value: ds551-s26.team02.validated.moderate-20260417-001437
+  - name: validate-dlq-topic
+    value: ds551-s26.team02.validate_dlq.moderate-20260417-001437
+  - name: symptom-topic
+    value: ds551-s26.team02.symptom_reports.moderate-20260417-001437
+  - name: clinic-topic
+    value: ds551-s26.team02.clinic_visits.moderate-20260417-001437
+  - name: hospital-topic
+    value: ds551-s26.team02.hospital_admissions.moderate-20260417-001437
+  - name: routing-dlq-topic
+    value: ds551-s26.team02.routing_dlq.moderate-20260417-001437
+  - name: team-id
+    value: team02
+  - name: batch-size
+    value: "400000"
+  - name: consumer-timeout-ms
+    value: "300000"
+  - name: validate-consumer-group-id
+    value: team02-validate-moderate-20260417-001437
+  - name: route-consumer-group-id
+    value: team02-route-moderate-20260417-001437
+  pipelineRef:
+    name: phase1-pipeline
+  taskRunTemplate:
+    serviceAccountName: pipeline
+  timeouts:
+    pipeline: 1h0m0s
+status:
+  childReferences:
+  - apiVersion: tekton.dev/v1
+    kind: TaskRun
+    name: phase1-stress-moderate-20260417-001437-lk98q-validate
+    pipelineTaskName: validate
+  - apiVersion: tekton.dev/v1
+    kind: TaskRun
+    name: phase1-stress-moderate-20260417-001437-lk98q-route-and-enrich
+    pipelineTaskName: route-and-enrich
+  completionTime: "2026-04-17T04:37:28Z"
+  conditions:
+  - lastTransitionTime: "2026-04-17T04:37:28Z"
+    message: 'Tasks Completed: 2 (Failed: 0, Cancelled 0), Skipped: 0'
+    reason: Succeeded
+    status: "True"
+    type: Succeeded
+  pipelineSpec:
+    params:
+    - name: kafka-bootstrap
+      type: string
+    - name: input-topic
+      type: string
+    - name: validated-topic
+      type: string
+    - default: ""
+      name: validate-dlq-topic
+      type: string
+    - name: symptom-topic
+      type: string
+    - name: clinic-topic
+      type: string
+    - name: hospital-topic
+      type: string
+    - default: ""
+      name: routing-dlq-topic
+      type: string
+    - name: team-id
+      type: string
+    - default: "100"
+      name: batch-size
+      type: string
+    - default: "30000"
+      name: consumer-timeout-ms
+      type: string
+    - default: team02-validate-group
+      name: validate-consumer-group-id
+      type: string
+    - default: team02-route-group
+      name: route-consumer-group-id
+      type: string
+    tasks:
+    - name: validate
+      params:
+      - name: kafka-bootstrap
+        value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
+      - name: input-topic
+        value: ds551-s26.team02.raw.moderate-20260417-001437
+      - name: output-topic
+        value: ds551-s26.team02.validated.moderate-20260417-001437
+      - name: validate-dlq-topic
+        value: ds551-s26.team02.validate_dlq.moderate-20260417-001437
+      - name: batch-size
+        value: "400000"
+      - name: consumer-timeout-ms
+        value: "300000"
+      - name: consumer-group-id
+        value: team02-validate-moderate-20260417-001437
+      taskRef:
+        kind: Task
+        name: validate-events
+    - name: route-and-enrich
+      params:
+      - name: kafka-bootstrap
+        value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
+      - name: input-topic
+        value: ds551-s26.team02.validated.moderate-20260417-001437
+      - name: symptom-topic
+        value: ds551-s26.team02.symptom_reports.moderate-20260417-001437
+      - name: clinic-topic
+        value: ds551-s26.team02.clinic_visits.moderate-20260417-001437
+      - name: hospital-topic
+        value: ds551-s26.team02.hospital_admissions.moderate-20260417-001437
+      - name: routing-dlq-topic
+        value: ds551-s26.team02.routing_dlq.moderate-20260417-001437
+      - name: team-id
+        value: team02
+      - name: batch-size
+        value: "400000"
+      - name: consumer-timeout-ms
+        value: "300000"
+      - name: consumer-group-id
+        value: team02-route-moderate-20260417-001437
+      runAfter:
+      - validate
+      taskRef:
+        kind: Task
+        name: route-and-enrich
+  provenance:
+    featureFlags:
+      awaitSidecarReadiness: true
+      coschedule: workspaces
+      enableAPIFields: beta
+      enableProvenanceInStatus: true
+      enforceNonfalsifiability: none
+      maxResultSize: 4096
+      resultExtractionMethod: termination-message
+      runningInEnvWithInjectedSidecars: true
+      verificationNoMatchPolicy: ignore
+  startTime: "2026-04-17T04:24:50Z"
