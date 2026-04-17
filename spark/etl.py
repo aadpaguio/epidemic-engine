@@ -570,15 +570,14 @@ def build_feature_clinic_hourly(
     batch_id: str,
     run_ts: datetime,
 ) -> DataFrame:
-    """Natural key: (bucket_start, clinic_id)."""
+    """Natural key: (bucket_start, clinic_id). Columns match feature_clinic_hourly DDL."""
     beds_last = F.expr("max_by(available_beds, cast(event_ts as timestamp))")
     agg = df_clinic.groupBy("bucket_start", "clinic_id").agg(
-        F.max("region").alias("region"),
         F.count(F.lit(1)).alias("visit_count"),
         F.sum(F.when(F.col("follow_up_required"), 1).otherwise(0)).alias(
-            "follow_up_true_count" ),
-        F.avg("temperature_f").alias("temperature_avg"),
-        F.variance("temperature_f").alias("temperature_var"),
+            "follow_up_true_count"
+        ),
+        F.sum("temperature_f").alias("temperature_sum"),
         F.count(F.col("temperature_f")).alias("temperature_count"),
         F.min("available_beds").alias("available_beds_min"),
         F.avg("available_beds").alias("available_beds_avg"),
@@ -592,11 +591,9 @@ def build_feature_clinic_hourly(
     ).select(
         "bucket_start",
         "clinic_id",
-        "region",
         "visit_count",
         "follow_up_true_count",
-        "temperature_avg",
-        "temperature_var",
+        "temperature_sum",
         "temperature_count",
         "available_beds_min",
         "available_beds_avg",
@@ -612,20 +609,15 @@ def build_feature_hospital_hourly(
     batch_id: str,
     run_ts: datetime,
 ) -> DataFrame:
-    """Natural key: (bucket_start, hospital_id)."""
+    """Natural key: (bucket_start, hospital_id). Columns match feature_hospital_hourly DDL."""
     beds_last = F.expr("max_by(available_beds, cast(event_ts as timestamp))")
     agg = df_hospital.groupBy("bucket_start", "hospital_id").agg(
-        F.max("region").alias("region"),
         F.count(F.lit(1)).alias("admission_count"),
         F.sum("severity").alias("severity_sum"),
-        F.avg("severity").alias("severity_avg"),
-        F.variance("severity").alias("severity_var"),
         F.count(F.col("severity")).alias("severity_count"),
-        F.avg("temperature_f").alias("temperature_avg"),
-        F.variance("temperature_f").alias("temperature_var"),
+        F.sum("temperature_f").alias("temperature_sum"),
         F.count(F.col("temperature_f")).alias("temperature_count"),
-        F.avg("oxygen_level").alias("oxygen_avg"),
-        F.variance("oxygen_level").alias("oxygen_var"),
+        F.sum("oxygen_level").alias("oxygen_sum"),
         F.count(F.col("oxygen_level")).alias("oxygen_count"),
         F.sum("expected_los_days").alias("expected_los_sum"),
         F.count(F.col("expected_los_days")).alias("expected_los_count"),
@@ -641,17 +633,12 @@ def build_feature_hospital_hourly(
     ).select(
         "bucket_start",
         "hospital_id",
-        "region",
         "admission_count",
         "severity_sum",
-        "severity_avg",
-        "severity_var",
         "severity_count",
-        "temperature_avg",
-        "temperature_var",
+        "temperature_sum",
         "temperature_count",
-        "oxygen_avg",
-        "oxygen_var",
+        "oxygen_sum",
         "oxygen_count",
         "expected_los_sum",
         "expected_los_count",
@@ -668,51 +655,34 @@ def build_feature_diagnosis_hourly(
     batch_id: str,
     run_ts: datetime,
 ) -> DataFrame:
-    """Natural key: (bucket_start, region, diagnosis_code)."""
-    agg = df_clinic.groupBy("bucket_start", "region", "diagnosis_code").agg(
+    """Natural key: (bucket_start, clinic_id, diagnosis_code). Matches feature_diagnosis_hourly DDL."""
+    agg = df_clinic.groupBy("bucket_start", "clinic_id", "diagnosis_code").agg(
         F.count(F.lit(1)).alias("diagnosis_visit_count"),
-        F.sum(F.when(F.col("follow_up_required"), 1).otherwise(0)).alias(
-            "follow_up_true_count" ),
-        F.countDistinct("clinic_id").alias("clinic_id_unique"),
-        F.countDistinct("visit_type").alias("visit_type_unique"),
-        F.avg("temperature_f").alias("temperature_avg"),
-        F.variance("temperature_f").alias("temperature_var"),
-        F.count(F.col("temperature_f")).alias("temperature_count")
+        F.sum("temperature_f").alias("temperature_sum"),
+        F.count(F.col("temperature_f")).alias("temperature_count"),
     )
     return agg.withColumn("batch_id", F.lit(batch_id)).withColumn(
         "run_timestamp", F.lit(run_ts).cast(TimestampType())
     ).select(
         "bucket_start",
-        "region",
+        "clinic_id",
         "diagnosis_code",
-        "clinic_id_unique",
         "diagnosis_visit_count",
-        "visit_type_unique",
-        "temperature_avg",
-        "temperature_var",
+        "temperature_sum",
         "temperature_count",
-        "follow_up_true_count"
+        "batch_id",
+        "run_timestamp",
     )
 
 
 def build_feature_symptom_hourly(
     df_symptoms: DataFrame,
     batch_id: str,
-    run_ts: datetime,    
+    run_ts: datetime,
 ) -> DataFrame:
-    """Natural key: (bucket_start, region, symptom_token)."""
+    """Natural key: (bucket_start, region, symptom_token). Matches feature_symptom_hourly DDL."""
     agg = df_symptoms.groupBy("bucket_start", "region", "symptom_token").agg(
-        F.count(F.lit(1)).alias("symptom_visit_count"),
-        F.avg("age").alias("age_avg"),
-        F.variance("age").alias("age_var"),
-        F.count(F.col("age")).alias("age_count"),
-        F.sum("severity").alias("severity_sum"),
-        F.avg("severity").alias("severity_avg"),
-        F.variance("severity").alias("severity_var"),
-        F.count(F.col("severity")).alias("severity_count"),
-        F.avg("duration_days").alias("duration_days_avg"),
-        F.variance("duration_days").alias("duration_days_var"),
-        F.count(F.col("duration_days")).alias("duration_days_count")
+        F.count(F.lit(1)).alias("symptom_token_count"),
     )
     return agg.withColumn("batch_id", F.lit(batch_id)).withColumn(
         "run_timestamp", F.lit(run_ts).cast(TimestampType())
@@ -720,31 +690,27 @@ def build_feature_symptom_hourly(
         "bucket_start",
         "region",
         "symptom_token",
-        "symptom_visit_count",
-        "age_avg",
-        "age_var",
-        "age_count",
-        "severity_sum",
-        "severity_avg",
-        "severity_var",
-        "severity_count",
-        "duration_days_avg",
-        "duration_days_var",
-        "duration_days_count"
+        "symptom_token_count",
+        "batch_id",
+        "run_timestamp",
     )
     
 
 
 def write_jdbc(df: DataFrame, table: str, jdbc_url: str, user: str, password: str) -> None:
-    (
+    # Explicit driver avoids "No suitable driver" when the JAR is on the classpath via
+    # spark-submit --packages but DriverManager does not auto-select for this URL.
+    driver = _optional_env("JDBC_DRIVER", "org.postgresql.Driver")
+    writer = (
         df.write.format("jdbc")
+        .option("driver", driver)
         .option("url", jdbc_url)
         .option("dbtable", table)
         .option("user", user)
         .option("password", password)
         .mode("append")
-        .save()
     )
+    writer.save()
 
 
 def write_jdbc_analytic(
