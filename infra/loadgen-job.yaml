@@ -35,7 +35,9 @@ spec:
           args:
             - |
               set -euo pipefail
-              pip install --no-cache-dir -q kafka-python-ng
+              # OpenShift runs with a random non-root UID; install deps under /tmp.
+              export HOME=/tmp
+              pip install --no-cache-dir -q --user kafka-python-ng
               exec python -u /opt/loadgen/produce.py
           env:
             # Must match your namespace / course broker (see tekton/pipelinerun.yaml).

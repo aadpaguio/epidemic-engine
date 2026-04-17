@@ -30,6 +30,12 @@ spec:
     - name: consumer-timeout-ms
       type: string
       default: "30000"
+    - name: validate-consumer-group-id
+      type: string
+      default: "team02-validate-group"
+    - name: route-consumer-group-id
+      type: string
+      default: "team02-route-group"
 
   tasks:
     - name: validate
@@ -48,6 +54,8 @@ spec:
           value: $(params.batch-size)
         - name: consumer-timeout-ms
           value: $(params.consumer-timeout-ms)
+        - name: consumer-group-id
+          value: $(params.validate-consumer-group-id)
 
     - name: route-and-enrich
       runAfter:
@@ -73,3 +81,5 @@ spec:
           value: $(params.batch-size)
         - name: consumer-timeout-ms
           value: $(params.consumer-timeout-ms)
+        - name: consumer-group-id
+          value: $(params.route-consumer-group-id)

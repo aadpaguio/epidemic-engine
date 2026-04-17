@@ -83,7 +83,8 @@ def _build_clinic(rng: random.Random) -> dict[str, Any]:
         ),
         "temperature_f": round(rng.uniform(96.5, 103.0), 1),
         "diagnosis_code": f"ICD-{rng.randint(100, 999)}",
-        "prescribed_medication": rng.choice(["none", "ibuprofen", "antibiotic", "inhaler"]),
+        # Keep clinic payload aligned with Spark schema (BooleanType).
+        "prescribed_medication": rng.choice([True, False]),
         "follow_up_required": rng.choice([True, False]),
         "available_beds": rng.randint(0, 50),
     }
