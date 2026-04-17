@@ -421,13 +421,14 @@ spec:
             # Store cluster files in a subdirectory (see PostgreSQL image PGDATA docs).
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+          # Lower limits fit 8Gi project quota alongside Kafka + Tekton (4Gi effective step pods).
           resources:
             requests:
-              memory: "2Gi"
-              cpu: "250m"
+              memory: "512Mi"
+              cpu: "100m"
             limits:
-              memory: "4Gi"
-              cpu: "1"
+              memory: "1Gi"
+              cpu: "500m"
           volumeMounts:
             - name: pgdata
               mountPath: /var/lib/postgresql/data
