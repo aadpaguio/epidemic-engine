@@ -126,7 +126,7 @@ This section uses two saved runs under `logs/stress/`. **Important:** the assign
 | Spark parse | `parse_ok_count` 56,835, `skipped_count` 0, `status` healthy |
 | DB write times (ms) | region 5,494; clinic 2,393; hospital 2,094; **diagnosis 13,140**; symptom 2,115 |
 | Rows written (feature tables, total) | 16,506 |
-| Peak pod memory/CPU | Not saved (use `oc adm top pod` on future runs if you want this in the report) |
+| Peak pod memory/CPU | Not saved |
 
 **Plain-language readout:** The producer held **~100 events/sec** for **600 s** with **no failed sends or acks**. Typed-topic row counts (~56.8k routable) line up with ~59.8k raw messages minus ~5% unroutable traffic. **Kafka acknowledgements were very slow** (median ~5 minutes, tail ~10 minutes) even though the rate target was met, which usually means messages are piling up inside the broker or the cluster is under heavy queueing. Phase 1 took **~13 minutes** to drain this batch. Spark finished in **~70 seconds**, parsed everything, and wrote to the database; the **diagnosis** hourly table took the longest single write because it has the most distinct groups (hour × clinic × diagnosis code).
 
@@ -167,7 +167,7 @@ Latency here is **producer ack latency** from the loadgen `LOADGEN` summary (tim
 
 ### 3.5 Back-pressure handling
 
-If **loadgen or Phase 1** writes faster than **Spark** runs, messages **stay on the typed Kafka topics** until the next Spark job. Spark reads from **earliest to latest** for that job, so lag shows up as **more bytes/offsets on topic**, a **longer Spark batch read**, and **larger DB appends**. Operationally you can **run Spark more often**, **reduce load**, **raise Spark resources**, or **process a smaller offset window** (would require a job change). Phase 1 already limits how much moves per `PipelineRun` via `batch-size`; if raw outruns Phase 1, **raw topic lag** grows until you add **more or larger PipelineRuns**.
+If **loadgen or Phase 1** writes faster than **Spark** runs, messages **stay on the typed Kafka topics** until the next Spark job. Spark reads from **earliest to latest** for that job, so lag shows up as **more bytes/offsets on topic**, a **longer Spark batch read**, and **larger DB appends**. Operationally we can **run Spark more often**, **reduce load**, **raise Spark resources**, or **process a smaller offset window** (would require a job change). Phase 1 already limits how much moves per `PipelineRun` via `batch-size`; if raw outruns Phase 1, **raw topic lag** grows until we add **more or larger PipelineRuns**.
 
 ---
 
