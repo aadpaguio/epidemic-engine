@@ -6,10 +6,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 
-DB_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg2://spark_writer:CHANGE_ME_BEFORE_DEPLOY@timescaledb-service:5432/epidemic",
-)
+DB_URL = os.getenv("DATABASE_URL")
+if not DB_URL:
+    raise RuntimeError("DATABASE_URL is not set")
 
 MODEL_PATH = os.getenv("MODEL_PATH", "ml/model.pkl")
 
