@@ -4,10 +4,10 @@ import joblib
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-DB_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg2://spark_writer:CHANGE_ME_BEFORE_DEPLOY@timescaledb-service:5432/epidemic",
-)
+DB_URL = os.getenv("DATABASE_URL")
+if not DB_URL:
+    raise RuntimeError("DATABASE_URL is not set")
+    
 MODEL_PATH = os.getenv("MODEL_PATH", "ml/model.pkl")
 MODEL_VERSION = os.getenv("MODEL_VERSION", "v1")
 THRESHOLD = float(os.getenv("THRESHOLD", "0.5"))
