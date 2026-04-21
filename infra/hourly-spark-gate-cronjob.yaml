@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: epidemic-hourly-spark-gate
+  annotations:
+    deprecation-note: "Deprecated: nested oc exec gate is unreliable; use scripts/run-hourly-spark-external.sh from local/CI."
+spec:
+  suspend: true
+  schedule: "5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: spark-etl
+          restartPolicy: OnFailure
+          containers:
+            - name: hourly-gate
+              image: quay.io/openshift/origin-cli:4.15
+              command: ["/bin/bash", "-lc"]
+              args:
+                - |
+                  set -euo pipefail
+                  bash /opt/epidemic/run-hourly-spark-gated.sh
+              env:
+                - name: PHASE1_WAIT_TIMEOUT_SECS
+                  value: "1800"
+                - name: GATE_POLL_SECS
+                  value: "60"
+                - name: REQUIRE_LAG_CHECK
+                  value: "1"
+                - name: KAFKA_POD_SELECTOR
+                  value: "app=kafka-team02"
+                - name: KAFKA_BOOTSTRAP_IN_POD
+                  value: "localhost:9092"
+                - name: KAFKA_CONSUMER_GROUPS
+                  value: "team02-validate-group,team02-route-group"
+                - name: MAX_ALLOWED_LAG
+                  value: "0"
+                - name: DB_POD
+                  value: "timescaledb-0"
+                - name: DB_NAME
+                  value: "epidemic"
+                - name: DB_USER
+                  value: "spark_writer"
+                - name: SPARK_JOB_TEMPLATE_PATH
+                  value: "/opt/spark-template/spark-job.yaml"
+              volumeMounts:
+                - name: gate-script
+                  mountPath: /opt/epidemic
+                  readOnly: true
+                - name: spark-job-template
+                  mountPath: /opt/spark-template
+                  readOnly: true
+          volumes:
+            - name: gate-script
+              configMap:
+                name: spark-hourly-gate-script
+            - name: spark-job-template
+              configMap:
+                name: spark-job-template

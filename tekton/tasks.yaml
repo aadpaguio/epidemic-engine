@@ -156,9 +156,10 @@ spec:
         consumer_kwargs = dict(
             bootstrap_servers=BOOTSTRAP,
             group_id=GROUP,
-            auto_offset_reset="earliest",
+            # Prefer forward-only behavior for new groups.
+            auto_offset_reset="latest",
             value_deserializer=lambda b: b,
-            enable_auto_commit=True,
+            enable_auto_commit=False,
         )
         if CONSUMER_TIMEOUT_MS > 0:
             consumer_kwargs["consumer_timeout_ms"] = CONSUMER_TIMEOUT_MS
@@ -170,6 +171,7 @@ spec:
         )
 
         total_consumed = valid_count = dlq_count = error_count = 0
+        had_processing_error = False
         summary_status = ""
 
         try:
@@ -223,6 +225,7 @@ spec:
                                     dlq_count += 1
                                 except Exception as pe:
                                     error_count += 1
+                                    had_processing_error = True
                                     pipeline_log(
                                         kid,
                                         "error",
@@ -260,6 +263,7 @@ spec:
                                 )
                             except Exception as pe:
                                 error_count += 1
+                                had_processing_error = True
                                 pipeline_log(
                                     eid,
                                     "error",
@@ -297,6 +301,7 @@ spec:
                                 dlq_count += 1
                             except Exception as pe:
                                 error_count += 1
+                                had_processing_error = True
                                 pipeline_log(
                                     kid,
                                     "error",
@@ -312,8 +317,11 @@ spec:
                     break
         except: 
             summary_status="failed"
+            had_processing_error = True
         finally:
             producer.flush()
+            if not had_processing_error:
+                consumer.commit()
             assignment = consumer.assignment()
             positions = {}
             for tp in assignment:
@@ -500,9 +508,10 @@ spec:
         consumer_kwargs = dict(
             bootstrap_servers=BOOTSTRAP,
             group_id=GROUP,
-            auto_offset_reset="earliest",
+            # Prefer forward-only behavior for new groups.
+            auto_offset_reset="latest",
             value_deserializer=lambda b: b,
-            enable_auto_commit=True,
+            enable_auto_commit=False,
         )
         if CONSUMER_TIMEOUT_MS > 0:
             consumer_kwargs["consumer_timeout_ms"] = CONSUMER_TIMEOUT_MS
@@ -516,6 +525,7 @@ spec:
         total_consumed = valid_count = dlq_count = error_count = 0
         silent_dropped = 0
         summary_status = ""
+        had_processing_error = False
 
         try:
             while total_consumed < BATCH_SIZE:
@@ -558,6 +568,7 @@ spec:
                             sent, perr = send_routing_dlq(producer, kid, envelope)
                             if perr:
                                 error_count += 1
+                                had_processing_error = True
                             elif sent:
                                 dlq_count += 1
                             else:
@@ -589,6 +600,7 @@ spec:
                             sent, perr = send_routing_dlq(producer, kid, envelope)
                             if perr:
                                 error_count += 1
+                                had_processing_error = True
                             elif sent:
                                 dlq_count += 1
                             else:
@@ -639,6 +651,7 @@ spec:
                             sent, perr = send_routing_dlq(producer, kid, envelope)
                             if perr:
                                 error_count += 1
+                                had_processing_error = True
                             elif sent:
                                 dlq_count += 1
                             else:
@@ -649,8 +662,11 @@ spec:
                     break
         except:
             summary_status="failed"
+            had_processing_error = True
         finally:
             producer.flush()
+            if not had_processing_error:
+                consumer.commit()
             assignment = consumer.assignment()
             positions = {}
             for tp in assignment:

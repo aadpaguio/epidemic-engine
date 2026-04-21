@@ -16,7 +16,9 @@ This folder implements the DS-551 Phase 1 flow described in `INSTRUCTIONS.md`: v
 
    Other types (e.g. `emergency_incident`, `general_health_report`, `vaccination`) are **silently dropped** (no produce to typed topics; optional routing DLQ remains for parse/produce errors only).
 
-Both tasks use **`kafka-python-ng`** in `python:3.11-slim`, consume with **`auto_offset_reset='earliest'`**, and stop after **`batch-size`** messages (default 100) per run.
+Both tasks use **`kafka-python-ng`** in `python:3.11-slim`, consume with **`auto_offset_reset='latest'`** for new consumer groups, and stop after **`batch-size`** messages (default 100) per run. Offsets are committed manually after producer flush, and each PipelineTask has retries configured in `tekton/pipeline.yaml`.
+
+For unattended hourly operation, avoid overlapping runs with the same consumer-group IDs.
 
 ## Files
 

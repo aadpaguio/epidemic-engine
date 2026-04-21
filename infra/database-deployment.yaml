@@ -227,34 +227,72 @@ data:
     CREATE INDEX IF NOT EXISTS idx_feature_diagnosis_hourly_diagnosis
         ON feature_diagnosis_hourly (diagnosis_code, bucket_start DESC);
 
+    -- Window-level run metadata for gated scheduling and revision safety.
+    CREATE TABLE IF NOT EXISTS batch_window_runs (
+        window_start   TIMESTAMPTZ NOT NULL,
+        window_end     TIMESTAMPTZ NOT NULL,
+        run_id         TEXT        NOT NULL,
+        batch_id       TEXT        NOT NULL,
+        status         TEXT        NOT NULL CHECK (status IN ('running', 'succeeded', 'failed')),
+        reason_code    TEXT,
+        reason_detail  TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        completed_at   TIMESTAMPTZ,
+        PRIMARY KEY (window_start, run_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_batch_window_runs_window_status
+        ON batch_window_runs (window_start DESC, status, completed_at DESC);
+
     -- ---------------------------------------------------------------------------
-    -- Layer B: six derived analytics (views on latest batch per bucket for serving;
-    -- Spark may append multiple batch_id rows — views filter to max(run_timestamp) per key.)
+    -- Layer B: six derived analytics (views on latest successful batch per bucket).
     -- ---------------------------------------------------------------------------
 
-    -- Helper: latest batch row per natural key (excluding batch_id from key).
+    -- Helper view: latest successful run for each hour bucket.
+    CREATE OR REPLACE VIEW v_latest_successful_batch_per_bucket AS
+    SELECT DISTINCT ON (window_start)
+        window_start AS bucket_start,
+        batch_id,
+        run_id,
+        completed_at
+    FROM batch_window_runs
+    WHERE status = 'succeeded'
+    ORDER BY window_start, completed_at DESC, run_id DESC;
+
+    -- Helper: latest successful batch row per natural key (excluding batch_id from key).
     CREATE OR REPLACE VIEW v_latest_feature_region_hourly AS
     SELECT DISTINCT ON (bucket_start, region)
-        *
-    FROM feature_region_hourly
+        f.*
+    FROM feature_region_hourly f
+    JOIN v_latest_successful_batch_per_bucket b
+      ON b.bucket_start = f.bucket_start
+     AND b.batch_id = f.batch_id
     ORDER BY bucket_start, region, run_timestamp DESC, batch_id DESC;
 
     CREATE OR REPLACE VIEW v_latest_feature_clinic_hourly AS
     SELECT DISTINCT ON (bucket_start, clinic_id)
-        *
-    FROM feature_clinic_hourly
+        f.*
+    FROM feature_clinic_hourly f
+    JOIN v_latest_successful_batch_per_bucket b
+      ON b.bucket_start = f.bucket_start
+     AND b.batch_id = f.batch_id
     ORDER BY bucket_start, clinic_id, run_timestamp DESC, batch_id DESC;
 
     CREATE OR REPLACE VIEW v_latest_feature_hospital_hourly AS
     SELECT DISTINCT ON (bucket_start, hospital_id)
-        *
-    FROM feature_hospital_hourly
+        f.*
+    FROM feature_hospital_hourly f
+    JOIN v_latest_successful_batch_per_bucket b
+      ON b.bucket_start = f.bucket_start
+     AND b.batch_id = f.batch_id
     ORDER BY bucket_start, hospital_id, run_timestamp DESC, batch_id DESC;
 
     CREATE OR REPLACE VIEW v_latest_feature_diagnosis_hourly AS
     SELECT DISTINCT ON (bucket_start, clinic_id, diagnosis_code)
-        *
-    FROM feature_diagnosis_hourly
+        f.*
+    FROM feature_diagnosis_hourly f
+    JOIN v_latest_successful_batch_per_bucket b
+      ON b.bucket_start = f.bucket_start
+     AND b.batch_id = f.batch_id
     ORDER BY bucket_start, clinic_id, diagnosis_code, run_timestamp DESC, batch_id DESC;
 
     -- 1) Regional disease severity trend: average severity and case volume per region per hour.
