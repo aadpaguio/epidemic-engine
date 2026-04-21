@@ -13,6 +13,7 @@ import sys
 import time
 import uuid
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from typing import Any
 
 from pyspark.sql import Column, DataFrame, SparkSession
@@ -59,6 +60,103 @@ def _jar_list_env(name: str) -> list[str]:
     if not raw:
         return []
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def parse_utc_window(value: str, name: str) -> datetime:
+    raw = (value or "").strip()
+    if not raw:
+        raise RuntimeError(f"Missing required UTC window value: {name}")
+    norm = raw.replace("Z", "+00:00")
+    dt = datetime.fromisoformat(norm)
+    if dt.tzinfo is None:
+        raise RuntimeError(f"{name} must include timezone offset (use Z for UTC): {value}")
+    dt_utc = dt.astimezone(timezone.utc)
+    return dt_utc
+
+
+def resolve_window() -> tuple[datetime, datetime]:
+    require_window = _env_truthy("REQUIRE_WINDOW_UTC")
+    ws = _optional_env("WINDOW_START_UTC")
+    we = _optional_env("WINDOW_END_UTC")
+    if not require_window:
+        raise RuntimeError("REQUIRE_WINDOW_UTC=true is required for production Spark runs")
+    if not ws or not we:
+        raise RuntimeError("Both WINDOW_START_UTC and WINDOW_END_UTC are required")
+    window_start = parse_utc_window(ws, "WINDOW_START_UTC")
+    window_end = parse_utc_window(we, "WINDOW_END_UTC")
+    if window_end <= window_start:
+        raise RuntimeError("WINDOW_END_UTC must be greater than WINDOW_START_UTC")
+    return window_start, window_end
+
+
+def parse_jdbc_postgres_url(jdbc_url: str) -> tuple[str, int, str]:
+    # Expecting jdbc:postgresql://host:5432/dbname
+    if not jdbc_url.startswith("jdbc:postgresql://"):
+        raise RuntimeError(f"Unsupported JDBC URL for window maintenance: {jdbc_url}")
+    parsed = urlparse(jdbc_url.replace("jdbc:", "", 1))
+    if not parsed.hostname or not parsed.path:
+        raise RuntimeError(f"Malformed JDBC URL: {jdbc_url}")
+    db_name = parsed.path.lstrip("/")
+    return parsed.hostname, int(parsed.port or 5432), db_name
+
+
+def record_window_status(
+    jdbc_url: str,
+    user: str,
+    password: str,
+    run_id: str,
+    batch_id: str,
+    window_start: datetime,
+    window_end: datetime,
+    status: str,
+    reason_code: str | None,
+    reason_detail: str | None = None,
+) -> None:
+    import psycopg2  # type: ignore
+
+    host, port, db_name = parse_jdbc_postgres_url(jdbc_url)
+    with psycopg2.connect(
+        host=host,
+        port=port,
+        dbname=db_name,
+        user=user,
+        password=password,
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO batch_window_runs (
+                    window_start,
+                    window_end,
+                    run_id,
+                    batch_id,
+                    status,
+                    reason_code,
+                    reason_detail
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (window_start, run_id) DO UPDATE
+                SET
+                    batch_id = EXCLUDED.batch_id,
+                    status = EXCLUDED.status,
+                    reason_code = EXCLUDED.reason_code,
+                    reason_detail = EXCLUDED.reason_detail,
+                    completed_at = CASE
+                        WHEN EXCLUDED.status IN ('succeeded', 'failed') THEN now()
+                        ELSE batch_window_runs.completed_at
+                    END
+                """,
+                (
+                    window_start,
+                    window_end,
+                    run_id,
+                    batch_id,
+                    status,
+                    reason_code,
+                    reason_detail,
+                ),
+            )
+            conn.commit()
 
 
 def severity_for_analytics(severity_col: Column) -> Column:
@@ -288,6 +386,16 @@ def with_event_time_and_bucket(
     )
 
     return base.withColumn("skip_reason", skip_reason)
+
+
+def filter_window(df: DataFrame, window_start: datetime, window_end: datetime) -> DataFrame:
+    if window_end == window_start:
+        return df
+    return df.filter(
+        F.col("event_ts").isNotNull()
+        & (F.col("event_ts") >= F.lit(window_start).cast(TimestampType()))
+        & (F.col("event_ts") < F.lit(window_end).cast(TimestampType()))
+    )
 
 
 def log_kafka_read_slices(
@@ -781,6 +889,7 @@ def main() -> int:
     run_id = _optional_env("RUN_ID") or str(uuid.uuid4())
     batch_id = _optional_env("BATCH_ID") or run_id
     run_ts = datetime.now(timezone.utc)
+    window_start, window_end = resolve_window()
 
     kafka_bootstrap = _env("KAFKA_BOOTSTRAP")
     topic_symptom = _optional_env("TOPIC_SYMPTOM", DEFAULT_SYMPTOM_TOPIC) or DEFAULT_SYMPTOM_TOPIC
@@ -809,6 +918,8 @@ def main() -> int:
             "batch_id": batch_id,
             "started_at": started_at.isoformat(),
             "skip_jdbc_write": skip_jdbc,
+            "window_start_utc": window_start.isoformat(),
+            "window_end_utc": window_end.isoformat(),
         }
     )
 
@@ -828,7 +939,8 @@ def main() -> int:
         parsed = parse_kafka_to_payload(kafka_df)
         parsed_bucketed = with_event_time_and_bucket(
             parsed, topic_symptom, topic_clinic, topic_hospital
-        ).cache()
+        )
+        parsed_bucketed = filter_window(parsed_bucketed, window_start, window_end).cache()
         parse_stats = collect_parse_stats(parsed_bucketed, expected_topics)
 
         log_analytics(
@@ -850,6 +962,8 @@ def main() -> int:
                     }
                     for k, v in parse_stats["watermarks_by_topic"].items()
                 },
+                "window_start_utc": window_start.isoformat(),
+                "window_end_utc": window_end.isoformat(),
             }
         )
 
@@ -903,6 +1017,17 @@ def main() -> int:
             )
             rows_written_total = 0
         else:
+            record_window_status(
+                jdbc_url,
+                jdbc_user,
+                jdbc_password,
+                run_id,
+                batch_id,
+                window_start,
+                window_end,
+                "running",
+                None,
+            )
             rows_region = write_jdbc_analytic(
                 region_hourly,
                 "feature_region_hourly",
@@ -993,8 +1118,22 @@ def main() -> int:
                 "duration_ms": duration_ms,
                 "empty_topics": parse_stats["empty_topics"],
                 "skip_rate_pct": round(skip_pct, 4),
+                "window_start_utc": window_start.isoformat(),
+                "window_end_utc": window_end.isoformat(),
             }
         )
+        if not skip_jdbc:
+            record_window_status(
+                jdbc_url,
+                jdbc_user,
+                jdbc_password,
+                run_id,
+                batch_id,
+                window_start,
+                window_end,
+                "succeeded",
+                None,
+            )
         return 0
     except Exception as e:
         rc = classify_exception(e)
@@ -1014,8 +1153,26 @@ def main() -> int:
                 "started_at": started_at.isoformat(),
                 "completed_at": completed_at.isoformat(),
                 "duration_ms": duration_ms,
+                "window_start_utc": window_start.isoformat(),
+                "window_end_utc": window_end.isoformat(),
             }
         )
+        if not skip_jdbc:
+            try:
+                record_window_status(
+                    jdbc_url,
+                    jdbc_user,
+                    jdbc_password,
+                    run_id,
+                    batch_id,
+                    window_start,
+                    window_end,
+                    "failed",
+                    rc,
+                    str(e)[:500],
+                )
+            except Exception:
+                pass
         raise
     finally:
         if parsed_bucketed is not None:

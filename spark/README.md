@@ -1,6 +1,6 @@
 # Phase 2 Spark batch ETL
 
-`etl.py` reads the three typed Kafka topics, builds hourly fact DataFrames, and appends to TimescaleDB/PostgreSQL via JDBC.
+`etl.py` reads the three typed Kafka topics, builds hourly fact DataFrames, and writes windowed aggregates to TimescaleDB/PostgreSQL via JDBC.
 
 ## Computed analytics
 
@@ -14,7 +14,7 @@ The job implements **five distinct hourly aggregations** in `spark/etl.py` (func
 
 **Layer B (SQL only):** `infra/database-deployment.yaml` defines views such as `analytic_regional_disease_severity_trend` and `analytic_hospital_capacity_pressure` on top of these facts; they are evaluated in PostgreSQL/Timescale, not inside Spark.
 
-**Idempotency:** Re-running the Spark job re-reads Kafka (`earliest` → `latest`) and **appends** new rows with a new `batch_id`; it does not upsert in place.
+**Windowed revisions (stale-but-available):** each run requires an explicit UTC window (`WINDOW_START_UTC`, `WINDOW_END_UTC`) and appends a new `batch_id` for that window. Serving views publish the latest **successful** batch, so failed replacements do not remove the previous successful hour.
 
 ## Configuration (environment)
 
@@ -27,6 +27,8 @@ The job implements **five distinct hourly aggregations** in `spark/etl.py` (func
 | `JDBC_PASSWORD`                                     | yes      | DB password                                                                                                                                               |
 | `TOPIC_SYMPTOM` / `TOPIC_CLINIC` / `TOPIC_HOSPITAL` | no       | Defaults to team02 topic names in code                                                                                                                    |
 | `BATCH_ID` / `RUN_ID`                               | no       | Run metadata stored on fact rows                                                                                                                          |
+| `WINDOW_START_UTC` / `WINDOW_END_UTC`               | yes*     | Required when `REQUIRE_WINDOW_UTC=true`; ETL filters to `[start,end)` in UTC                                                                             |
+| `REQUIRE_WINDOW_UTC`                                | yes (prod) | Must be `true` in production; ETL fails unless both window vars are present                                                                            |
 | `SPARK_JDBC_JAR`                                    | no       | Set in Docker image to PostgreSQL JDBC path                                                                                                               |
 | `SPARK_EXTRA_JARS`                                  | no       | Optional comma-separated Spark datasource jars; the image now sets this to the Spark Kafka connector jars                                                 |
 | `ANALYTICS_SKIP_DEGRADE_PCT`                        | no       | Skip-rate threshold for `degraded` summary (default `25`)                                                                                                 |
@@ -62,7 +64,36 @@ Run in this order:
 7. **Run the Spark Job** — `oc apply -f infra/spark-job.yaml -n "$NAMESPACE"` then `**oc logs -f job/epidemic-spark-etl -n "$NAMESPACE"`**. You should see `**[ANALYTICS]`** lines (`kafka_read`, `parse`, `db_write`, `summary`). Topic env vars default to `**ds551-s26.team02.***` and should match Phase 1 output topic params.
 8. **Re-run** — Delete the Job before re-applying: `**oc delete job epidemic-spark-etl -n "$NAMESPACE"`**. Run another `**oc create -f tekton/pipelinerun.yaml`** to push more batches through Phase 1, then run the Spark Job again.
 
-**Note:** Spark batch reads `**earliest` → `latest`**, so each ETL run scans the full current topic; new Phase 1 runs append messages for the next ETL pass.
+**Note:** Spark still reads Kafka `earliest` → `latest`, but only rows whose parsed `event_ts` is inside the configured UTC window are materialized. Phase 1 now uses `auto_offset_reset='latest'` for new consumer groups to bias toward new-message hourly operation.
+
+## Hourly external gate (recommended)
+
+For unattended hourly execution, use the external runner so Spark launches only after a ready Phase 1 run. This avoids nested `oc exec` into DB/Kafka pods.
+
+```bash
+export NAMESPACE=<your-namespace>
+oc project "$NAMESPACE"
+
+oc apply -f infra/spark-rbac.yaml -n "$NAMESPACE"
+oc apply -f infra/database-deployment.yaml -n "$NAMESPACE"
+oc create configmap spark-etl-script --from-file=etl.py=spark/etl.py \
+  --dry-run=client -o yaml | oc apply -n "$NAMESPACE" -f -
+
+# Invoke once per schedule tick (cron/CI):
+KAFKA_BOOTSTRAP='kafka-team02:9092' \
+DB_HOST='timescaledb-service' \
+DB_PORT='5432' \
+DB_NAME='epidemic' \
+DB_USER='spark_writer' \
+DB_PASSWORD='<db-password>' \
+KAFKA_CONSUMER_GROUPS='team02-validate-group,team02-route-group' \
+MAX_ALLOWED_LAG='0' \
+scripts/run-hourly-spark-external.sh
+```
+
+The runner computes the closed UTC window, waits for latest successful `PipelineRun` with no running `TaskRun`, performs lag checks, and launches Spark with explicit `WINDOW_START_UTC` / `WINDOW_END_UTC`.
+
+`infra/hourly-spark-gate-cronjob.yaml` is kept only as a deprecated reference and is suspended by default.
 
 ## Run Phase 1 and Phase 2 (automation)
 
@@ -184,6 +215,9 @@ export KAFKA_BOOTSTRAP=...
 export JDBC_URL=jdbc:postgresql://localhost:5432/epidemic
 export JDBC_USER=...
 export JDBC_PASSWORD=...
+export WINDOW_START_UTC=2026-04-21T10:00:00Z
+export WINDOW_END_UTC=2026-04-21T11:00:00Z
+export REQUIRE_WINDOW_UTC=true
 python spark/etl.py
 ```
 

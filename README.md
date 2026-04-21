@@ -104,6 +104,7 @@ Additional folders and files will be added later as the project grows.
 - **Kafka Tips:** `docs/kafka-tips.md`
 - **Spark Tips:** `docs/spark-tips.md`
 - **Spark ETL (deploy / redeploy / test):** `spark/README.md` (includes OpenShift Job iteration commands)
+- **Hourly Spark orchestration (external runner):** `scripts/run-hourly-spark-external.sh` (`scripts/run-hourly-spark-gated.sh` is a compatibility wrapper)
 - **Local DB connection (DBeaver):** `docs/local-db-connection.md`
 - **Phase 2 stress-test report (R5b):** `docs/phase2-stress-test.md`
 - **Tekton Tips:** `docs/tekton-tips.md`

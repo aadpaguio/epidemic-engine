@@ -39,6 +39,7 @@ spec:
 
   tasks:
     - name: validate
+      retries: 2
       taskRef:
         name: validate-events
       params:
@@ -58,6 +59,7 @@ spec:
           value: $(params.validate-consumer-group-id)
 
     - name: route-and-enrich
+      retries: 2
       runAfter:
         - validate
       taskRef:
