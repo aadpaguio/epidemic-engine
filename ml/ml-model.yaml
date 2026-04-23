@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: outbreak-predict
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: outbreak-predict
+          image: image-registry.openshift-image-registry.svc:5000/<your-namespace>/outbreak-predict:latest
+          env:
+            - name: DATABASE_URL
+              value: postgresql+psycopg2://spark_writer:CHANGE_ME_BEFORE_DEPLOY@timescaledb-service:5432/epidemic
+            - name: MODEL_PATH
+              value: /app/ml/model.pkl
+            - name: MODEL_VERSION
+              value: v1
+            - name: THRESHOLD
+              value: "0.5"
