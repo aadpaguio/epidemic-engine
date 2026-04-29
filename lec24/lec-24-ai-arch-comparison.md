@@ -25,20 +25,7 @@ Paste the key elements of your team's original architecture plan. Include at min
 3. Your Phase 3 capabilities
 4. Your data flow (Kafka topics → Spark → DB)
 
-1. Database choice and justification: TimescaleDB was selected as the feature store for its hypertable support, enabling efficient time-series queries and continuous aggregates. This choice qualifies for the +20 bonus in the Phase 2 rubric by leveraging PostgreSQL extensions for scalable analytics, avoiding simple timestamp columns and supporting partitioned storage for historical data.
-
-2. The analytics planned (name + what each computes):
-
-- Regional disease severity trend: Computes average severity and case counts per region over time to identify worsening trends.
-- Hospital capacity pressure index: Calculates a stress signal per hospital combining admission rates and available bed statistics.
-- Symptom-to-admission escalation rate: Derives the ratio of admissions to symptoms per region and time bucket as an indicator of escalation.
-- Event volume by type over time: Tracks throughput and activity mix per event type across time periods.
-- Average patient temperature by diagnosis code: Aggregates temperature trends grouped by diagnosis code, optionally by clinic or time.
-- Follow-up requirement rate by clinic: Computes the rate of follow-up requirements per clinic, retaining numerator and denominator counts.
-
-3. Phase 3 capabilities: Phase 3 includes a dashboard for visualization, an alerting service for notifications, and an ML scoring/outbreak prediction model that consumes the database for real-time analytics.
-
-4. Data flow (Kafka topics → Spark → DB): Event Generator → Kafka raw topic (ds551-s26.team02.raw) → Tekton validate-events → validated topic (ds551-s26.team02.validated) → Tekton route-and-enrich → typed topics (ds551-s26.team02.symptom_reports, ds551-s26.team02.clinic_visits, ds551-s26.team02.hospital_admissions) → Spark batch ETL job → TimescaleDB Layer A fact tables (canonical hourly facts) → Layer B SQL views (derived analytics) → Phase 3 consumers.
+> [your team's architecture summary here]
 
 ---
 
@@ -49,32 +36,16 @@ Paste the architecture plan that VS Code Copilot generated for your Epidemic Eng
 **Prompt(s) you used:**
 
 ```
-using the given instructions and requirements, design an architecture plan
-```
-(INSTRUCTIONS.md, PHASE2-INSTRUCTIONS.md, PHASE3-INSTRUCTIONS.md provided as context). 
-First output was not useful, had to additionally prompt for 
-```
-give more detail on the previous plan you gave me. What steps do I need to take to implement this?
+[paste your prompt(s) here]
 ```
 
 **Copilot's output:**
 
-## Plan: Implement Epidemic Engine Architecture
+```
+[paste Copilot's output here]
+```
 
-Build the full Epidemic Engine system as summarized, integrating Phases 1-3 with TimescaleDB, 6 distinct analytics, Phase 3 features (visualization, alerting, ML), end-to-end Kafka-to-database flow, and assigned team roles, ensuring operational readiness by May 4, 2026.
-
-### Steps
-1. Implement Phase 1 Tekton pipeline: Create tasks.yaml, pipeline.yaml, and pipelinerun.yaml for validation, enrichment, and routing to typed topics.
-2. Deploy TimescaleDB: Use database-deployment.yaml and database-init.sql with hypertables for time-series storage, achieving +20 bonus.
-3. Develop Spark ETL job: Write etl.py to compute 6 analytics (e.g., regional trends via `groupBy` and `avg`), containerize with Dockerfile, and deploy via spark-job.yaml.
-4. Build Phase 3 features: Create Jupyter notebooks in notebooks/ for visualization, alerting service in alert/, and ML model in ml for outbreak prediction.
-5. Integrate and test: Run end-to-end flow for 1+ hour, document in PHASE3-DATAFLOW.md and PHASE3-ARCHITECTURE.md, assign roles, and create runbook.
-6. Finalize deliverables: Update README.md, PHASE3-FEATURES-SCORECARD.md, record video, and prepare for interview.
-
-### Further Considerations
-1. Prioritize Phase 1 completion first, as Phases 2-3 depend on typed topics; test with live Kafka events.
-2. Ensure analytics are distinct and queryable (e.g., use `window` functions for time buckets); align with PHASE2-INSTRUCTIONS.md for stress testing.
-3. Leverage existing plans in phase-1-plan.md and phase-2-plan.md; assign roles based on strengths (e.g., one for Tekton, one for Spark).
+---
 
 ## Q3 — Where the AI Plan Matched Your Design (20 pts)
 
@@ -82,23 +53,19 @@ Identify **at least two specific areas** where the AI-generated plan aligned wit
 
 **Match 1:**
 
-Both plans specifically call out using TimescaleDB as the feature store
+> [describe the match; quote/paraphrase both plans]
 
 **Why they matched:**
 
-While this was an intentional decision that we made, based on evaluating options provided in the 'database options' table in PHASE2-INSTRUCTIONS, I think that the AI planner has somehow just pulled this decision in as context, even though I tried not to include these files.
+> [your explanation]
 
 **Match 2:**
 
-Both call for the same yaml files to be created for the phase 1 tekton pipeline
-
-AI-generated has step 2 "Implement Phase 1 Tekton pipeline: Create tasks.yaml, pipeline.yaml, and pipelinerun.yaml for validation, enrichment, and routing to typed topics."
-
-Our plan has these files listed as well, with specific requirements, see phase-1-plan.md starting from line 135.
+> [describe the match; quote/paraphrase both plans]
 
 **Why they matched:**
 
-These file were explicitly asked for by the instructions. It makes perfect sense that they would be included in both design plans.
+> [your explanation]
 
 ---
 
@@ -108,7 +75,7 @@ Identify **at least two specific areas** where the AI-generated plan differed fr
 
 **Divergence 1:**
 
-AI plan 
+> [describe the divergence; quote/paraphrase both plans]
 
 **Judgment (worse / different-but-reasonable / better) and why:**
 
