@@ -1,43 +1,200 @@
 # ML Model Guide
 
 ## Goal
+
 Predict outbreak risk by region using Phase 2 analytics stored in TimescaleDB.
 
+The ML component is a Phase 3 proof-of-concept outbreak prediction workflow. It shows that our pipeline can turn Kafka/Tekton/Spark/TimescaleDB analytics into model-ready features, train a supervised model, score recent regional windows, and write predictions back into the database.
+
+## Database Objects
+
+The ML feature store is defined in the TimescaleDB schema and includes:
+
+- `vw_region_hourly_ml_features`
+- `vw_region_hourly_ml_features_windowed`
+- `ml_outbreak_predictions`
+
+The base ML view reads from `analytic_regional_disease_severity_trend`. The windowed view adds rolling and lagged regional features. The prediction table stores scored outputs from `ml/predict.py` so dashboard and alerting consumers can read model results from TimescaleDB.
+
 ## Input Data
+
 The model reads from:
+
 - `vw_region_hourly_ml_features`
 - `vw_region_hourly_ml_features_windowed`
 
-These views are built on top of the Phase 2 feature store.
+These views are built on top of the Phase 2 TimescaleDB feature store.
+
+The current model uses synthetic course-generated data that passed through the deployed end-to-end pipeline:
+
+```text
+Kafka raw topic
+→ Tekton validation/routing
+→ typed Kafka topics
+→ Spark hourly facts
+→ TimescaleDB Layer A / Layer B
+→ ML feature views
+```
+
+This is real pipeline output, but it is still synthetic project data, not real clinical or public health data.
 
 ## Candidate Features
-- total_case_events
-- avg_severity
-- symptom_count
-- admission_count
-- clinic_visit_count
-- admission_share
-- cases_prev_6h
-- cases_prev_24h
-- severity_prev_6h_avg
-- severity_prev_24h_avg
-- total_case_events_lag_6h
-- total_case_events_lag_24h
+
+The model uses regional outbreak-related signals:
+
+- `total_case_events`
+- `avg_severity`
+- `symptom_count`
+- `admission_count`
+- `clinic_visit_count`
+- `admission_share`
+- `cases_prev_6h`
+- `cases_prev_24h`
+- `severity_prev_6h_avg`
+- `severity_prev_24h_avg`
+- `total_case_events_lag_6h`
+- `total_case_events_lag_24h`
+
+These features focus on active outbreak signals: symptom reports, clinic visits, hospital admissions, regional severity, and recent temporal trends.
 
 ## Labeling Strategy
-Synthetic outbreak labels will be generated from historical analytics windows.
+
+The course-generated data does not include real ground-truth outbreak labels, so the training script creates a synthetic label called `has_outbreak`.
+
 Initial baseline rule:
-- outbreak = 1 when event volume and severity are both elevated
-- outbreak = 0 otherwise
 
-This rule may be refined after exploratory analysis.
+```text
+has_outbreak = 1 when total_case_events >= 50 and avg_severity >= 2.3
+has_outbreak = 0 otherwise
+```
 
-## Model Candidates
-- Logistic Regression
-- Random Forest
+This means a region-hour is labeled as an outbreak only when both event volume and severity are elevated.
+
+This label is a heuristic for supervised ML in the project. It is not a clinically validated public-health label.
+
+## Model
+
+The current model is a `RandomForestClassifier`.
+
+The model is trained by:
+
+```text
+ml/train.py
+```
+
+The training script:
+
+1. connects to TimescaleDB using `DATABASE_URL`
+2. reads rows from `vw_region_hourly_ml_features_windowed`
+3. creates the synthetic `has_outbreak` label
+4. trains a Random Forest model
+5. saves the model and feature column list to `ml/model.pkl`
+
+## Current Training Data Status
+
+The latest retraining used synthetic pipeline-generated data from TimescaleDB.
+
+Current training view summary:
+
+- 30 regional hourly rows
+- 5 regions
+- bucket range: `2026-04-29 12:00:00+00` to `2026-04-30 18:00:00+00`
+- 23 synthetic normal examples
+- 7 synthetic outbreak examples
+
+Because the dataset is small and labels are synthetic, the model should be described as a proof-of-concept outbreak prediction workflow, not a production-quality predictor.
 
 ## Output
-Batch predictions are written to `ml_outbreak_predictions`.
+
+Batch predictions are written to:
+
+```text
+ml_outbreak_predictions
+```
+
+The prediction table stores:
+
+- `prediction_timestamp`
+- `bucket_start`
+- `region`
+- `model_version`
+- `risk_score`
+- `predicted_label`
+- `threshold`
+- `run_id`
+
+The scoring script is:
+
+```text
+ml/predict.py
+```
+
+It loads `ml/model.pkl`, scores recent rows from `vw_region_hourly_ml_features_windowed`, converts model probability into `high_risk` or `normal` using a threshold of `0.5`, and inserts the results into `ml_outbreak_predictions`.
+
+## Latest Prediction Run
+
+The latest scoring run successfully wrote 20 predictions to TimescaleDB.
+
+Example run ID:
+
+```text
+a9a4cd63-7b58-492b-8fa6-60d501e8577b
+```
+
+The outputs were logically consistent with the synthetic label rule. Region-hours that met the elevated volume and severity rule received high risk scores, while rows below the severity threshold were predicted as normal.
+
+## Vaccination Change Order Impact
+
+CO-2026-01 added `vaccination_record` events to the pipeline. These records are routed to:
+
+```text
+ds551-s26.team02.vaccination_records
+```
+
+Spark aggregates them into:
+
+```text
+feature_vaccination_hourly
+```
+
+TimescaleDB exposes them through:
+
+```text
+analytic_vaccination_volume_by_type
+```
+
+Vaccination data is intentionally excluded from the current outbreak prediction model. The current model focuses on active outbreak signals such as symptom reports, clinic visits, hospital admissions, severity, and recent temporal trends.
+
+Vaccination analytics are handled separately through the change-order analytic and dashboard visualization.
+
+## Dashboard Integration
+
+The ML pipeline writes scored predictions to `ml_outbreak_predictions`.
+
+The dashboard can display this table as an operational view of model output, but the dashboard does not train the model or run prediction logic.
+
+Recommended dashboard display:
+
+- latest predictions table
+- risk score by region
+- predicted label: `high_risk` or `normal`
+- prediction timestamp
+- model version
 
 ## Serving Path
-Phase 1 Kafka -> Phase 2 Spark -> TimescaleDB feature store -> ML batch scoring -> predictions table -> alerting/dashboard consumers
+
+```text
+Phase 1 Kafka
+→ Phase 2 Spark
+→ TimescaleDB feature store
+→ ML batch scoring
+→ ml_outbreak_predictions
+→ dashboard / alerting consumers
+```
+
+## Limitations
+
+- The data is synthetic course-generated data.
+- The labels are synthetic heuristic labels.
+- The current training set is small.
+- The model demonstrates an operational ML pipeline, not a clinically validated public-health predictor.
