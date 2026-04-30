@@ -1,40 +1,37 @@
 # Timed Continuous Collection Plan
 
-This plan avoids Kubernetes `CronJob` scheduling. Instead, keep one terminal running for a fixed wall-clock duration, repeatedly launch the existing one-shot Phase 1 and Spark jobs, and let the database accumulate hourly feature batches.
+This plan avoids Kubernetes `CronJob` scheduling. Use long-lived shell loops from your laptop: Phase 1 Tekton runs drain the real Kafka raw topic into typed topics; a separate loop (or manual ticks) launches Spark on closed UTC hours so TimescaleDB accumulates hourly feature batches.
 
 ## Goal
 
-Collect epidemic events into TimescaleDB/PostgreSQL for a controlled period, such as 3 hours, without depending on cluster scheduling.
+Collect epidemic events into TimescaleDB/PostgreSQL for a controlled period (for example 15 minutes smoke or 3 hours) without depending on cluster scheduling.
 
-The existing architecture remains unchanged:
+End-to-end flow:
 
-1. Real raw events already arrive in Kafka through the course bootstrap server.
-2. Phase 1 Tekton pipeline validates and routes raw events into typed Kafka topics.
-3. Spark ETL reads typed Kafka topics for an explicit time window.
-4. Spark writes hourly feature tables in the database.
+1. Real raw events arrive at Kafka (course bootstrap).
+2. Phase 1: **validate-events** → `validated` → **route-and-enrich** → typed topics (including `vaccination_records` on the vaccination branch).
+3. Phase 2 Spark: reads typed topics for an explicit **`WINDOW_START_UTC` / `WINDOW_END_UTC`**, writes **`feature_*_hourly`** tables.
 
-Spark is still batch-oriented. The timed runner simply repeats the batch process until the requested duration ends.
+Spark remains **batch** jobs, not streaming.
 
-## Recommended Operating Model
+## Recommended operating mode
 
-Run one long-lived collection terminal, plus optional monitoring terminals:
+Use **one orchestrator terminal** for full collection:
 
-1. **Timed collection loop:** repeatedly runs Phase 1 against the real raw Kafka topic.
-2. **Hourly Spark launch:** writes closed-hour typed records into TimescaleDB.
-3. **Monitoring:** watches Tekton, Spark, Kafka lag, or database row counts.
+| Terminal | Purpose |
+| -------- | ------- |
+| **1** | `scripts/run-phase1-spark-orchestrated.sh`: sequential Phase 1 runs plus event-time Spark launches |
 
-This is easier to debug than a CronJob because logs stay visible in the terminal and each failed command stops where the problem happened.
+The older two-terminal pattern is still useful for manual debugging, but the orchestrator is safer for the namespace quota because it alternates Phase 1 and Spark instead of allowing the 4Gi Spark job to collide with active Tekton pods.
 
 ## Prerequisites
-
-From the repository root:
 
 ```bash
 export NAMESPACE=<your-openshift-namespace>
 oc project "$NAMESPACE"
 ```
 
-Make sure the database, RBAC, and Spark script ConfigMap are applied:
+Apply DB, RBAC, and Spark script ConfigMap:
 
 ```bash
 oc apply -f infra/database-deployment.yaml -n "$NAMESPACE"
@@ -44,22 +41,29 @@ oc create configmap spark-etl-script --from-file=etl.py=spark/etl.py \
   --dry-run=client -o yaml | oc apply -n "$NAMESPACE" -f -
 ```
 
-The Spark job expects the `epidemic-db-spark` secret to exist with `username` and `password` keys.
+After changing **`tekton/tasks.yaml`** (memory limits), re-apply Tasks and Pipeline:
 
-## Real Raw Events
+```bash
+oc apply -f tekton/tasks.yaml -n "$NAMESPACE"
+oc apply -f tekton/pipeline.yaml -n "$NAMESPACE"
+```
 
-For the actual 3-hour collection, do **not** run `loadgen`. Use the real raw events already available from Kafka:
+The Spark job expects Secret **`epidemic-db-spark`** (`username` / `password`).
+
+## Real raw events (preferred)
+
+Do **not** use `loadgen` for production-style collection unless the raw topic is empty.
 
 ```bash
 export KAFKA_BOOTSTRAP=kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
 export RAW_TOPIC=ds551-s26.team02.raw
 ```
 
-The bootstrap server is the Kafka address. The raw topic is the stream Phase 1 consumes.
+Bootstrap = Kafka address; raw topic = what Phase 1 **validate** consumes.
 
-## Optional Synthetic Data
+## Optional synthetic loadgen
 
-Use `loadgen` only if the real raw topic is quiet or unavailable. It is a fallback producer, not part of the preferred collection path:
+Only if you need artificial traffic:
 
 ```bash
 oc create configmap loadgen-produce-script \
@@ -75,138 +79,245 @@ oc create -f infra/loadgen-job.yaml --dry-run=client -o yaml \
       LOADGEN_DURATION_SEC='10800' \
       LOADGEN_RATE='10' \
   | oc apply -n "$NAMESPACE" -f -
-```
 
-Watch it with:
-
-```bash
 oc logs -f job/loadgen-raw-kafka -n "$NAMESPACE"
 ```
 
-## Smoke Test Topic Processing
+## Smoke tests
 
-Before running the full collection loop, verify that Phase 1 can read raw Kafka events and write the validated plus typed topics:
+**Phase 1 (topics):**
 
 ```bash
 scripts/smoke-phase1-topics.sh
 ```
 
-The smoke test creates a short-lived in-cluster producer, runs a temporary Phase 1 `PipelineRun`, then starts an in-cluster verifier. It passes only if records with the same `smoke_run_id` are found in:
-
-- `ds551-s26.team02.validated`
-- `ds551-s26.team02.symptom_reports`
-- `ds551-s26.team02.clinic_visits`
-- `ds551-s26.team02.hospital_admissions`
-
-Useful overrides:
-
-```bash
-SMOKE_KEEP_RESOURCES=1 scripts/smoke-phase1-topics.sh
-SMOKE_EVENT_COUNT=600 SMOKE_BATCH_SIZE=60 scripts/smoke-phase1-topics.sh
-```
-
-## Smoke Test Spark Database Writes
-
-After Phase 1 topic processing passes, verify Phase 2 by producing known records directly into the typed topics, running Spark for an explicit window, and checking the feature tables:
+**Phase 2 (DB, includes vaccination facts on the CO branch):**
 
 ```bash
 scripts/smoke-phase2-db.sh
 ```
 
-The Phase 2 smoke test passes only if Spark writes the unique smoke batch into:
+## Continuous PipelineRun manifest
 
-- `batch_window_runs`
-- `feature_region_hourly`
-- `feature_clinic_hourly`
-- `feature_hospital_hourly`
-- `feature_diagnosis_hourly`
-- `feature_symptom_hourly`
+**File:** `tekton/pipelinerun-continuous.yaml`
 
-Useful overrides:
+Current intent (check file for exact values):
+
+- **`batch-size`:** tuned for throughput vs Tekton duration (for example `100` for shorter validate steps).
+- **`consumer-timeout-ms`:** `120000` (2 minutes) — poll idle timeout per batch logic in tasks.
+- **`route-auto-offset-reset`:** `earliest` — route must read records validate already wrote for the same run (fresh route groups must not use `latest` only).
+
+To change batch size permanently, edit that file and `oc apply` is not required for PipelineRun templates — each `oc create` embeds params.
+
+### Batch size vs latency
+
+- **Validate** usually dominates wall time; **route-and-enrich** is often much faster for the same batch.
+- Goal for steady operation: **complete validate + route often enough** that typed topics keep moving, not “largest batch possible.”
+- If validate routinely exceeds your target (for example 5 minutes), **lower `batch-size`** (for example 250 → 100), not raise it.
+- If quota allows and validate is fast, you can **raise** batch size gradually.
+
+### Consumer offsets (short version)
+
+- Repeated runs use the **same consumer group IDs** by default → each run continues from **committed offsets**, not “from the beginning” every time.
+- **`route-auto-offset-reset: earliest`** matters when the route group has **no** committed offset yet; otherwise committed offsets win.
+- Course text suggests **`auto_offset_reset='earliest'`** for raw backlog replay when appropriate; for ongoing operation, committed offsets are normal.
+
+## Phase 1 task order
+
+Inside each `PipelineRun`:
+
+1. **validate-events** — consumes raw, writes **validated**.
+2. **route-and-enrich** — runs **after** validate (`runAfter`); consumes **validated**, writes typed topics.
+
+If validate has not finished, **route does not start**. Logs may show validate “done” in stdout before Tekton marks the TaskRun **Succeeded** — trust **`oc get taskrun`** for completion.
+
+## Shell gotchas (zsh)
+
+- Do **not** put **`#` comments** on the same line as `end=$(( ... ))` in a pasted block; zsh may error (`command not found: #`). Put comments on their own lines or omit them.
+- macOS often has **no `watch`** — use a `while true; do ... sleep 3; done` loop instead.
+
+## Recommended: sequential Phase 1 loop (one run at a time)
+
+This pattern **creates one `PipelineRun`, waits until it finishes**, then creates the next. It avoids overlapping runs, quota pile-ups, and ambiguous “is anything still running?” states.
+
+**15 minutes:**
 
 ```bash
-SMOKE_KEEP_RESOURCES=1 scripts/smoke-phase2-db.sh
-SPARK_WAIT_TIMEOUT=1200s scripts/smoke-phase2-db.sh
-```
+export NAMESPACE=ds551-2026-spring-a5f0d1
+oc project "$NAMESPACE"
 
-## Batch Size
+deadline=$(( $(date +%s) + 900 ))
 
-Use a larger Phase 1 batch size rather than a very short sleep. A short sleep creates many Tekton runs and more cluster overhead; a larger batch lets each run drain more Kafka messages.
-
-The repo includes `tekton/pipelinerun-continuous.yaml` for this mode. It keeps the same topics and consumer groups as `tekton/pipelinerun.yaml`, but raises `batch-size` from `100` to `5000`.
-
-Start with:
-
-- `batch-size`: `5000`
-- loop sleep: `300` seconds
-- collection duration: `10800` seconds, or 3 hours
-
-If Phase 1 consistently finishes quickly and Kafka lag grows, increase `batch-size` to `10000` or reduce sleep to `120` seconds. If pods hit quota or time out, reduce `batch-size`.
-
-## Terminal 1: Run Phase 1 For 3 Hours
-
-Run Phase 1 repeatedly against the real raw topic:
-
-```bash
-end=$(( $(date +%s) + 10800 ))
-
-while [ "$(date +%s)" -lt "$end" ]; do
-  oc create -f tekton/pipelinerun-continuous.yaml -n "$NAMESPACE"
-  sleep 300
+while [ "$(date +%s)" -lt "$deadline" ]; do
+  PR=$(oc create -f tekton/pipelinerun-continuous.yaml -n "$NAMESPACE" -o name)
+  echo "Started $PR"
+  oc wait -n "$NAMESPACE" --for=condition=Succeeded "$PR" --timeout=3600s || true
 done
 ```
 
-Expected behavior:
+**3 hours:** replace `900` with `10800`.
 
-- Raw events are consumed from `ds551-s26.team02.raw`.
-- Valid records are written to `ds551-s26.team02.validated`.
-- Routed records are written to `ds551-s26.team02.symptom_reports`, `ds551-s26.team02.clinic_visits`, and `ds551-s26.team02.hospital_admissions`.
-- Processing happens in bursts each time a `PipelineRun` starts.
+### Anti-pattern: sleep + create without wait
 
-## Hourly Feature Batching
-
-The database features are still written as hourly facts. Spark uses `WINDOW_START_UTC` and `WINDOW_END_UTC`, filters events to that window, buckets rows by hour, and appends to the `feature_*_hourly` tables.
-
-For clean hourly analytics, prefer closed hourly windows. If the loop runs Spark more frequently than once per hour, it can create multiple batches for the same hour. That is acceptable for collection and debugging because each batch has a distinct `batch_id`, but final reporting should use the latest successful batch for each hour.
-
-## Terminal 2: Launch Spark For Closed Hours
-
-Spark should write closed hourly windows, not every few minutes. Run this in a second terminal to launch Spark once per newly closed hour:
+A loop like:
 
 ```bash
-export KAFKA_BOOTSTRAP=kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
-export DB_HOST=timescaledb-service
-export DB_PORT=5432
-export DB_NAME=epidemic
-export DB_USER=spark_writer
-export DB_PASSWORD=<db-password>
-export KAFKA_CONSUMER_GROUPS=team02-validate-group,team02-route-group
-export REQUIRE_LAG_CHECK=0
-
-end=$(( $(date +%s) + 10800 ))
-last_window=""
-
-while [ "$(date +%s)" -lt "$end" ]; do
-  window_start="$(date -u -v-1H +"%Y-%m-%dT%H:00:00Z" 2>/dev/null || date -u -d '1 hour ago' +"%Y-%m-%dT%H:00:00Z")"
-  if [ "$window_start" != "$last_window" ]; then
-    scripts/run-hourly-spark-external.sh
-    last_window="$window_start"
-  fi
-  sleep 300
+while ...; do
+  oc create -f tekton/pipelinerun-continuous.yaml
+  sleep 45
 done
 ```
 
-This runner computes the previous closed UTC hour and launches Spark with explicit `WINDOW_START_UTC` / `WINDOW_END_UTC`. `REQUIRE_LAG_CHECK=0` avoids blocking forever while real raw events are still arriving. Give Phase 1 time to drain by keeping the larger batch size.
+starts a **new** run every interval **whether or not** the previous run finished. That stacks concurrent `PipelineRun`s, triggers **memory quota** errors, and makes Phase 1 hard to reason about. Prefer **`oc wait`** (above).
 
-## When To Stop
+### Optional: guard “only if nothing Running”
 
-The loop stops automatically after the requested duration. After it finishes, inspect the database feature tables and Spark logs to confirm rows were written:
+If you must use sleep between launches, gate on **Tekton `PipelineRun` status**. For `oc get pipelinerun` **without** `--no-headers`, the **`Running`** state is in column **3** (`REASON`):
+
+```bash
+running=$(oc get pipelinerun -n "$NAMESPACE" --no-headers \
+  | awk '$1 ~ /^phase1-continuous-run-/ && $3=="Running"{c++} END{print c+0}')
+```
+
+Using the wrong column caused false “no runs” and double launches.
+
+## Namespace memory quota and Tekton tasks
+
+OpenShift project quotas (for example **8Gi** total `limits.memory`) can block new Task pods with **`ExceededResourceQuota`**. Symptoms:
+
+- `validate` or `route` TaskRuns stay **Pending** / retry.
+- Events mention **`requested: limits.memory=4Gi`** vs **`limited: limits.memory=8Gi`**.
+
+Mitigations:
+
+1. **Only one Phase 1 run in flight** (sequential loop above).
+2. Keep **explicit low `computeResources`** on **validate** and **route** steps in **`tekton/tasks.yaml`** (for example **512Mi** limit per step after patch) and **re-apply** to the cluster.
+3. Avoid launching many `PipelineRun`s in parallel.
+
+After editing tasks, run:
+
+```bash
+oc apply -f tekton/tasks.yaml -n "$NAMESPACE"
+oc apply -f tekton/pipeline.yaml -n "$NAMESPACE"
+```
+
+## Monitoring
+
+**Watch PipelineRuns and TaskRuns (no `watch` on Mac):**
+
+```bash
+while true; do
+  clear
+  date
+  oc get pipelinerun,taskrun -n "$NAMESPACE" | grep -E 'phase1-continuous-run|NAME'
+  sleep 3
+done
+```
+
+**Logs for a specific run** (`PR=phase1-continuous-run-xxxxx`):
+
+```bash
+PR=phase1-continuous-run-xxxxx
+
+oc logs -f -n "$NAMESPACE" "${PR}-validate-pod" --all-containers=true
+oc logs -f -n "$NAMESPACE" "${PR}-route-and-enrich-pod" --all-containers=true
+```
+
+If pods are gone (run finished), use `--tail=200` without `-f`.
+
+**Validate duration** (wall clock for the validate TaskRun):
+
+```bash
+PR=phase1-continuous-run-xxxxx
+oc get taskrun "${PR}-validate" -n "$NAMESPACE" \
+  -o jsonpath='Start: {.status.startTime}{"\n"}End:   {.status.completionTime}{"\n"}'
+```
+
+Same pattern for **`${PR}-route-and-enrich`** to compare validate vs route time.
+
+## Cancelling runs
+
+**Cancel one run:**
+
+```bash
+oc patch pipelinerun <name> -n "$NAMESPACE" --type merge -p '{"spec":{"status":"Cancelled"}}'
+```
+
+**Cancel all currently Running continuous runs:**
+
+```bash
+oc get pipelinerun -n "$NAMESPACE" --no-headers \
+  | awk '$1 ~ /^phase1-continuous-run-/ && $3=="Running"{print $1}' \
+  | while read -r pr; do
+      oc patch pipelinerun "$pr" -n "$NAMESPACE" --type merge -p '{"spec":{"status":"Cancelled"}}'
+    done
+```
+
+Stop any **shell loops** in other terminals (`Ctrl+C`) so they do not create new runs after cancel.
+
+## Event-Time Spark Orchestrator
+
+Spark must target **event-time windows**, not necessarily the current wall-clock hour. Live testing showed Phase 1 can route records at the current time while the payload `timestamp` values are historical (for example `2026-04-29T12:54:35Z`). In that case, a Spark run for the current closed hour succeeds but writes **0 rows**, because no event timestamps fall inside that wall-clock window.
+
+Use the orchestrator so Phase 1 and Spark share the namespace quota safely and Spark picks a typed-topic event-time window with data:
+
+```bash
+export NAMESPACE=ds551-2026-spring-a5f0d1
+
+FRESH_CONSUMER_GROUPS=1 \
+SPARK_EVERY_PHASE1_RUNS=5 \
+EVENTTIME_LOOKBACK_HOURS=2 \
+LOG_FILE=logs/runtime/eventtime-continuous.log \
+bash scripts/run-phase1-spark-orchestrated.sh
+```
+
+For a quick test:
+
+```bash
+DURATION_SEC=600 \
+FRESH_CONSUMER_GROUPS=1 \
+SPARK_EVERY_PHASE1_RUNS=2 \
+EVENTTIME_LOOKBACK_HOURS=2 \
+LOG_FILE=logs/runtime/eventtime-test.log \
+bash scripts/run-phase1-spark-orchestrated.sh
+```
+
+The script:
+
+- Runs Phase 1 sequentially with configurable consumer groups.
+- Samples recent messages from typed topics.
+- Selects the latest hour represented by payload event timestamps plus a configurable lookback (`EVENTTIME_LOOKBACK_HOURS`, default `2`).
+- Launches Spark for that event-time window with a unique `batch_id`.
+- Logs Phase 1 summaries and Spark `[ANALYTICS]` lines to `LOG_FILE`.
+- Cancels active PipelineRuns and deletes the Spark job on `Ctrl+C`.
+
+Spark reads Kafka with **`startingOffsets`/`endingOffsets`** batch semantics but **filters by event time** using `WINDOW_START_UTC` / `WINDOW_END_UTC`. A successful Spark job with `rows_written_total=0` usually means the selected window did not match the payload timestamps.
+
+If you need to force a known event-time window manually:
+
+```bash
+WINDOW_START_UTC="2026-04-29T12:00:00Z"
+WINDOW_END_UTC="2026-04-29T13:00:00Z"
+RUN_ID="eventtime-$(date -u +%Y%m%dT%H%M%SZ)"
+BATCH_ID="eventtime-2026-04-29T12-$(date -u +%Y%m%dT%H%M%SZ)"
+
+oc delete job epidemic-spark-etl -n "$NAMESPACE" --ignore-not-found --wait=true
+
+oc create -f infra/spark-job.yaml --dry-run=client -o yaml \
+  | oc set env -f - --local -o yaml \
+      WINDOW_START_UTC="$WINDOW_START_UTC" \
+      WINDOW_END_UTC="$WINDOW_END_UTC" \
+      REQUIRE_WINDOW_UTC=true \
+      RUN_ID="$RUN_ID" \
+      BATCH_ID="$BATCH_ID" \
+  | oc apply -n "$NAMESPACE" -f -
+```
+
+## Database checks
 
 ```bash
 oc logs -f job/epidemic-spark-etl -n "$NAMESPACE"
 ```
-
-Useful database checks:
 
 ```sql
 SELECT batch_id, window_start, window_end, status, completed_at
@@ -215,18 +326,13 @@ ORDER BY completed_at DESC
 LIMIT 20;
 
 SELECT COUNT(*) FROM feature_region_hourly;
-SELECT COUNT(*) FROM feature_clinic_hourly;
-SELECT COUNT(*) FROM feature_hospital_hourly;
-SELECT COUNT(*) FROM feature_diagnosis_hourly;
-SELECT COUNT(*) FROM feature_symptom_hourly;
+SELECT COUNT(*) FROM feature_vaccination_hourly;
 ```
 
 ## Summary
 
-CronJob scheduling is optional. For immediate data collection, keep the system simple:
-
-1. Use the real Kafka raw topic from the bootstrap server.
-2. Run Phase 1 repeatedly for 3 hours with `tekton/pipelinerun-continuous.yaml`.
-3. Launch Spark once per closed hour.
-4. Keep Spark writing hourly feature batches to TimescaleDB.
-
+1. Use **real** raw Kafka traffic unless loadgen is explicitly needed.
+2. Prefer **`scripts/run-phase1-spark-orchestrated.sh`** for long runs; it keeps Phase 1 sequential and launches Spark without quota overlap.
+3. Spark should process **payload event-time windows**, not blindly the latest wall-clock hour.
+4. A successful Spark run with `rows_written_total=0` usually means the selected window does not match the event timestamps in the typed topics.
+5. Tune **`batch-size`**, **`SPARK_EVERY_PHASE1_RUNS`**, and **`EVENTTIME_LOOKBACK_HOURS`** so validate+route complete reliably and Spark has enough routed data to aggregate without missing late event-time windows.
