@@ -24,7 +24,7 @@ metadata:
   labels:
     app: epidemic-spark-etl
 spec:
-  backoffLimit: 2
+  backoffLimit: 0
   ttlSecondsAfterFinished: 86400
   template:
     metadata:
@@ -32,7 +32,7 @@ spec:
         app: epidemic-spark-etl
     spec:
       serviceAccountName: spark-etl
-      restartPolicy: OnFailure
+      restartPolicy: Never
       containers:
         - name: spark-etl
           # TA fallback: use pre-built Spark image while OpenShift builds are unreliable.
@@ -59,8 +59,9 @@ spec:
               memory: "1Gi"
               cpu: "500m"
             limits:
-              memory: "2Gi"
+              memory: "4Gi"
               cpu: "2"
+          terminationMessagePolicy: FallbackToLogsOnError
           env:
             # Same bootstrap as Phase 1 (`tekton/pipelinerun.yaml` → `kafka-bootstrap`).
             - name: KAFKA_BOOTSTRAP

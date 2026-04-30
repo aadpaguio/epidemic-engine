@@ -34,3 +34,5 @@ spec:
       value: team02-validate-group
     - name: route-consumer-group-id
       value: team02-route-group
+    - name: route-auto-offset-reset
+      value: earliest

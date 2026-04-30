@@ -1,0 +1,32 @@
+[2026-04-30T06:38:33Z] [orchestrator] logging to logs/runtime/quick-test.log
+[2026-04-30T06:38:33Z] [orchestrator] namespace=ds551-2026-spring-a5f0d1 duration_sec=300
+[2026-04-30T06:38:33Z] [orchestrator] initial spark baseline window=2026-04-30T05:00:00Z
+[2026-04-30T06:38:33Z] [orchestrator] validate_group=team02-validate-fresh-20260430T063833Z
+[2026-04-30T06:38:33Z] [orchestrator] route_group=team02-route-fresh-20260430T063833Z
+[2026-04-30T06:38:33Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-qq9nm
+[2026-04-30T06:38:33Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-qq9nm
+pipelinerun.tekton.dev/phase1-continuous-run-qq9nm condition met
+[2026-04-30T06:41:41Z] [phase1] status for phase1-continuous-run-qq9nm
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-qq9nm   True        Succeeded   3m8s        0s
+phase1-continuous-run-qq9nm-route-and-enrich                    True        Succeeded               19s         1s
+phase1-continuous-run-qq9nm-validate                            True        Succeeded               3m7s        21s
+[2026-04-30T06:41:41Z] [phase1] summary logs for phase1-continuous-run-qq9nm
+[pod/phase1-continuous-run-qq9nm-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 100, "valid_count": 100, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2446418}}
+[pod/phase1-continuous-run-qq9nm-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=100 valid=100 dlq=0 errors=0
+[pod/phase1-continuous-run-qq9nm-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 100, "valid_count": 72, "silent_dropped": 28, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 1900}}
+[pod/phase1-continuous-run-qq9nm-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=100 valid=72 silent_dropped=28 dlq=0 errors=0
+[2026-04-30T06:41:42Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-9bqhj
+[2026-04-30T06:41:42Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-9bqhj
+pipelinerun.tekton.dev/phase1-continuous-run-9bqhj condition met
+[2026-04-30T06:44:18Z] [phase1] status for phase1-continuous-run-9bqhj
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-9bqhj   True        Succeeded   2m36s       0s
+phase1-continuous-run-9bqhj-route-and-enrich                    True        Succeeded               15s         0s
+phase1-continuous-run-9bqhj-validate                            True        Succeeded               2m36s       17s
+[2026-04-30T06:44:19Z] [phase1] summary logs for phase1-continuous-run-9bqhj
+[pod/phase1-continuous-run-9bqhj-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 100, "valid_count": 78, "silent_dropped": 22, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 2400}}
+[pod/phase1-continuous-run-9bqhj-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=100 valid=78 silent_dropped=22 dlq=0 errors=0
+[pod/phase1-continuous-run-9bqhj-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 100, "valid_count": 100, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2446518}}
+[pod/phase1-continuous-run-9bqhj-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=100 valid=100 dlq=0 errors=0
+[2026-04-30T06:44:19Z] [orchestrator] completed

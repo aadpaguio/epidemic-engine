@@ -27,10 +27,12 @@ spec:
     - name: team-id
       value: team02
     - name: batch-size
-      value: "5000"
+      value: "100"
     - name: consumer-timeout-ms
       value: "120000"
     - name: validate-consumer-group-id
       value: team02-validate-group
     - name: route-consumer-group-id
       value: team02-route-group
+    - name: route-auto-offset-reset
+      value: earliest
