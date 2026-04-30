@@ -1,0 +1,32 @@
+=== ML train and prediction evidence ===
+Thu Apr 30 21:20:07 UTC 2026
+
+=== Feature view summary ===
+ rows  regions                min_bucket                max_bucket
+   30        5 2026-04-29 12:00:00+00:00 2026-04-30 18:00:00+00:00
+
+=== Synthetic label balance ===
+ has_outbreak  n
+            0 21
+            1  9
+
+=== Train model ===
+              precision    recall  f1-score   support
+
+           0       0.80      1.00      0.89         4
+           1       1.00      0.50      0.67         2
+
+    accuracy                           0.83         6
+   macro avg       0.90      0.75      0.78         6
+weighted avg       0.87      0.83      0.81         6
+
+Saved model to ml/model.pkl
+
+=== Predict ===
+Wrote 20 predictions with run_id=385c4991-4997-4230-98e4-d233c2242185
+
+=== Latest prediction run summary ===
+                              run_id  prediction_rows  regions                min_bucket                max_bucket                 first_prediction                  last_prediction
+385c4991-4997-4230-98e4-d233c2242185               20        5 2026-04-30 00:00:00+00:00 2026-04-30 18:00:00+00:00 2026-04-30 21:20:14.511305+00:00 2026-04-30 21:20:14.511305+00:00
+1340ac1d-fe6f-4c72-815a-e03a32a03444               20        5 2026-04-30 00:00:00+00:00 2026-04-30 18:00:00+00:00 2026-04-30 21:19:25.401158+00:00 2026-04-30 21:19:25.401158+00:00
+a9a4cd63-7b58-492b-8fa6-60d501e8577b               20        5 2026-04-30 00:00:00+00:00 2026-04-30 18:00:00+00:00 2026-04-30 19:41:25.757866+00:00 2026-04-30 19:41:25.757866+00:00
