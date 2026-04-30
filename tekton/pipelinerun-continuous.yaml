@@ -1,0 +1,36 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: phase1-continuous-run-
+spec:
+  pipelineRef:
+    name: phase1-pipeline
+  params:
+    - name: kafka-bootstrap
+      value: kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092
+    - name: input-topic
+      value: ds551-s26.team02.raw
+    - name: validated-topic
+      value: ds551-s26.team02.validated
+    - name: validate-dlq-topic
+      value: ds551-s26.team02.validate_dlq
+    - name: symptom-topic
+      value: ds551-s26.team02.symptom_reports
+    - name: clinic-topic
+      value: ds551-s26.team02.clinic_visits
+    - name: hospital-topic
+      value: ds551-s26.team02.hospital_admissions
+    - name: vaccination-topic
+      value: ds551-s26.team02.vaccination_records
+    - name: routing-dlq-topic
+      value: ds551-s26.team02.routing_dlq
+    - name: team-id
+      value: team02
+    - name: batch-size
+      value: "5000"
+    - name: consumer-timeout-ms
+      value: "120000"
+    - name: validate-consumer-group-id
+      value: team02-validate-group
+    - name: route-consumer-group-id
+      value: team02-route-group

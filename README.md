@@ -25,6 +25,8 @@ Events are validated, then enriched and routed, so that analytics can be perform
 
 The Phase 1 Tekton pipeline ingests raw epidemiological events from Kafka, validates their schema, enriches them with metadata, and routes them to typed output topics—with dead-letter topics for rejects and routing failures, Tekton retries for transient task failures, and keyed produces for idempotency-aware downstream handling.
 
+**Change order CO-2026-01:** `vaccination_record` events route to `ds551-s26.team02.vaccination_records`; Spark writes `feature_vaccination_hourly`. See [`docs/change-order-vaccination.md`](docs/change-order-vaccination.md).
+
 See `docs/architecture.md` for detailed architecture documentation.
 
 ---

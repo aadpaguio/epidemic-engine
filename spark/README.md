@@ -1,16 +1,17 @@
 # Phase 2 Spark batch ETL
 
-`etl.py` reads the three typed Kafka topics, builds hourly fact DataFrames, and writes windowed aggregates to TimescaleDB/PostgreSQL via JDBC.
+`etl.py` reads four typed Kafka topics (symptom, clinic, hospital, vaccination), builds hourly fact DataFrames, and writes windowed aggregates to TimescaleDB/PostgreSQL via JDBC.
 
 ## Computed analytics
 
-The job implements **five distinct hourly aggregations** in `spark/etl.py` (functions `build_feature_region_hourly` through `build_feature_symptom_hourly`). Each result set is written with `**mode("append")`** to the matching Timescale table (primary keys include `batch_id`).
+The job implements **six distinct hourly aggregations** in `spark/etl.py`. Each result set is written with `**mode("append")`** to the matching Timescale table (primary keys include `batch_id`).
 
 1. `**feature_region_hourly`** — Per hour and region, unions symptom, clinic, and hospital streams and aggregates event-type counts, severity and duration sums/counts, temperature sum/count, and `available_beds` gauge rollups (min, avg, last-by-event-time, sample count).
 2. `**feature_clinic_hourly`** — Per hour and clinic, counts visits and follow-ups, sums/counts temperatures, and rolls up `available_beds` gauge stats.
 3. `**feature_hospital_hourly`** — Per hour and hospital, counts admissions; sums/counts severity, temperature, oxygen, and expected length-of-stay; plus `available_beds` gauge rollups.
 4. `**feature_diagnosis_hourly`** — Per hour, clinic, and diagnosis code (clinic visits with non-null `diagnosis_code`), counts visits and aggregates temperature sum/count.
 5. `**feature_symptom_hourly`** — Per hour, region, and exploded symptom token, counts how often each token appears in that bucket.
+6. `**feature_vaccination_hourly`** — CO-2026-01: per hour, region, `vaccine_type`, and `dose_number`, counts vaccination records from typed topic `TOPIC_VACCINATION` (default `ds551-s26.team02.vaccination_records`).
 
 **Layer B (SQL only):** `infra/database-deployment.yaml` defines views such as `analytic_regional_disease_severity_trend` and `analytic_hospital_capacity_pressure` on top of these facts; they are evaluated in PostgreSQL/Timescale, not inside Spark.
 
@@ -25,7 +26,7 @@ The job implements **five distinct hourly aggregations** in `spark/etl.py` (func
 | `JDBC_URL`                                          | yes      | e.g. `jdbc:postgresql://timescaledb-service:5432/epidemic`                                                                                                |
 | `JDBC_USER`                                         | yes      | DB user                                                                                                                                                   |
 | `JDBC_PASSWORD`                                     | yes      | DB password                                                                                                                                               |
-| `TOPIC_SYMPTOM` / `TOPIC_CLINIC` / `TOPIC_HOSPITAL` | no       | Defaults to team02 topic names in code                                                                                                                    |
+| `TOPIC_SYMPTOM` / `TOPIC_CLINIC` / `TOPIC_HOSPITAL` / `TOPIC_VACCINATION` | no       | Defaults to team02 topic names in code (`TOPIC_VACCINATION` for CO-2026-01 vaccination typed topic)                                                      |
 | `BATCH_ID` / `RUN_ID`                               | no       | Run metadata stored on fact rows                                                                                                                          |
 | `WINDOW_START_UTC` / `WINDOW_END_UTC`               | yes*     | Required when `REQUIRE_WINDOW_UTC=true`; ETL filters to `[start,end)` in UTC                                                                             |
 | `REQUIRE_WINDOW_UTC`                                | yes (prod) | Must be `true` in production; ETL fails unless both window vars are present                                                                            |
@@ -115,7 +116,7 @@ The script `**scripts/run-phase1-and-phase2.sh**`:
 
 | Flag                      | Effect                                                                                          |
 | ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `--truncate-db`           | `TRUNCATE` the five `feature_*_hourly` tables before Spark (destructive).                       |
+| `--truncate-db`           | `TRUNCATE` the `feature_*_hourly` tables (including vaccination) before Spark (destructive). |
 | `--skip-phase1`           | Only run Spark (typed topics must already have data).                                           |
 | `--skip-phase2`           | Only run Tekton.                                                                                |
 | `--no-cleanup`            | Skip Job delete and Succeeded-pod delete (still creates a new `PipelineRun` when Phase 1 runs). |

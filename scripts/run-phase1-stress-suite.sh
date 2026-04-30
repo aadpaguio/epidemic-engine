@@ -163,7 +163,8 @@ render_spark_manifest() {
   local topic_symptom="$2"
   local topic_clinic="$3"
   local topic_hospital="$4"
-  awk -v run_id="$run_id" -v topic_symptom="$topic_symptom" -v topic_clinic="$topic_clinic" -v topic_hospital="$topic_hospital" '
+  local topic_vaccination="$5"
+  awk -v run_id="$run_id" -v topic_symptom="$topic_symptom" -v topic_clinic="$topic_clinic" -v topic_hospital="$topic_hospital" -v topic_vaccination="$topic_vaccination" '
     {
       if ($0 ~ /^[[:space:]]*-[[:space:]]+name:[[:space:]]+TOPIC_SYMPTOM[[:space:]]*$/) {
         print
@@ -183,6 +184,13 @@ render_spark_manifest() {
         print
         getline
         sub(/value:[[:space:]]*.*/, "value: \"" topic_hospital "\"")
+        print
+        next
+      }
+      if ($0 ~ /^[[:space:]]*-[[:space:]]+name:[[:space:]]+TOPIC_VACCINATION[[:space:]]*$/) {
+        print
+        getline
+        sub(/value:[[:space:]]*.*/, "value: \"" topic_vaccination "\"")
         print
         next
       }
@@ -209,6 +217,7 @@ run_phase2_for_run() {
   local topic_symptom="$3"
   local topic_clinic="$4"
   local topic_hospital="$5"
+  local topic_vaccination="$6"
 
   echo "[phase2] Applying RBAC and Spark ETL script ConfigMap..."
   oc apply -f "$SPARK_RBAC_MANIFEST"
@@ -218,7 +227,7 @@ run_phase2_for_run() {
 
   echo "[phase2] Recreating Job/${SPARK_JOB_NAME} for run_id=${run_id}..."
   oc delete "job/${SPARK_JOB_NAME}" --ignore-not-found
-  render_spark_manifest "$run_id" "$topic_symptom" "$topic_clinic" "$topic_hospital" | oc create -f -
+  render_spark_manifest "$run_id" "$topic_symptom" "$topic_clinic" "$topic_hospital" "$topic_vaccination" | oc create -f -
 
   echo "[phase2] Waiting for Job completion (timeout ${SPARK_WAIT_TIMEOUT})..."
   if ! oc wait --for=condition=complete "job/${SPARK_JOB_NAME}" --timeout="${SPARK_WAIT_TIMEOUT}"; then
@@ -236,13 +245,14 @@ run_scenario() {
   local rate="$2"
   local duration="$3"
   local run_id raw_topic pr_name out_dir
-  local topic_symptom topic_clinic topic_hospital
+  local topic_symptom topic_clinic topic_hospital topic_vaccination
 
   run_id="${scenario}-$(date +%Y%m%d-%H%M%S)"
   raw_topic="ds551-s26.team02.raw.${run_id}"
   topic_symptom="ds551-s26.team02.symptom_reports.${run_id}"
   topic_clinic="ds551-s26.team02.clinic_visits.${run_id}"
   topic_hospital="ds551-s26.team02.hospital_admissions.${run_id}"
+  topic_vaccination="ds551-s26.team02.vaccination_records.${run_id}"
   out_dir="logs/stress/${run_id}"
   mkdir -p "$out_dir"
 
@@ -280,7 +290,7 @@ run_scenario() {
   oc get taskrun -l "tekton.dev/pipelineRun=${pr_name}" -o yaml > "${out_dir}/taskruns.yaml"
 
   if [[ "$WITH_PHASE2" -eq 1 ]]; then
-    run_phase2_for_run "$run_id" "$out_dir" "$topic_symptom" "$topic_clinic" "$topic_hospital"
+    run_phase2_for_run "$run_id" "$out_dir" "$topic_symptom" "$topic_clinic" "$topic_hospital" "$topic_vaccination"
   fi
 
   echo "[done] Artifacts written to ${out_dir}"

@@ -22,6 +22,8 @@ spec:
       value: ds551-s26.team02.clinic_visits.__RUN_ID__
     - name: hospital-topic
       value: ds551-s26.team02.hospital_admissions.__RUN_ID__
+    - name: vaccination-topic
+      value: ds551-s26.team02.vaccination_records.__RUN_ID__
     - name: routing-dlq-topic
       value: ds551-s26.team02.routing_dlq.__RUN_ID__
     - name: team-id
