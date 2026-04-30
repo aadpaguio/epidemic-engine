@@ -10,7 +10,7 @@ End-to-end flow:
 
 1. Real raw events arrive at Kafka (course bootstrap).
 2. Phase 1: **validate-events** → `validated` → **route-and-enrich** → typed topics (including `vaccination_records` on the vaccination branch).
-3. Phase 2 Spark: reads typed topics for an explicit **`WINDOW_START_UTC` / `WINDOW_END_UTC`**, writes **`feature_*_hourly`** tables.
+3. Phase 2 Spark: reads typed topics for an explicit `**WINDOW_START_UTC` / `WINDOW_END_UTC`**, writes `**feature_*_hourly**` tables.
 
 Spark remains **batch** jobs, not streaming.
 
@@ -18,9 +18,11 @@ Spark remains **batch** jobs, not streaming.
 
 Use **one orchestrator terminal** for full collection:
 
-| Terminal | Purpose |
-| -------- | ------- |
-| **1** | `scripts/run-phase1-spark-orchestrated.sh`: sequential Phase 1 runs plus event-time Spark launches |
+
+| Terminal | Purpose                                                                                            |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| **1**    | `scripts/run-phase1-spark-orchestrated.sh`: sequential Phase 1 runs plus event-time Spark launches |
+
 
 The older two-terminal pattern is still useful for manual debugging, but the orchestrator is safer for the namespace quota because it alternates Phase 1 and Spark instead of allowing the 4Gi Spark job to collide with active Tekton pods.
 
@@ -41,14 +43,14 @@ oc create configmap spark-etl-script --from-file=etl.py=spark/etl.py \
   --dry-run=client -o yaml | oc apply -n "$NAMESPACE" -f -
 ```
 
-After changing **`tekton/tasks.yaml`** (memory limits), re-apply Tasks and Pipeline:
+After changing `**tekton/tasks.yaml**` (memory limits), re-apply Tasks and Pipeline:
 
 ```bash
 oc apply -f tekton/tasks.yaml -n "$NAMESPACE"
 oc apply -f tekton/pipeline.yaml -n "$NAMESPACE"
 ```
 
-The Spark job expects Secret **`epidemic-db-spark`** (`username` / `password`).
+The Spark job expects Secret `**epidemic-db-spark**` (`username` / `password`).
 
 ## Real raw events (preferred)
 
@@ -103,9 +105,9 @@ scripts/smoke-phase2-db.sh
 
 Current intent (check file for exact values):
 
-- **`batch-size`:** tuned for throughput vs Tekton duration (for example `100` for shorter validate steps).
-- **`consumer-timeout-ms`:** `120000` (2 minutes) — poll idle timeout per batch logic in tasks.
-- **`route-auto-offset-reset`:** `earliest` — route must read records validate already wrote for the same run (fresh route groups must not use `latest` only).
+- `**batch-size`:** tuned for throughput vs Tekton duration (for example `100` for shorter validate steps).
+- `**consumer-timeout-ms`:** `120000` (2 minutes) — poll idle timeout per batch logic in tasks.
+- `**route-auto-offset-reset`:** `earliest` — route must read records validate already wrote for the same run (fresh route groups must not use `latest` only).
 
 To change batch size permanently, edit that file and `oc apply` is not required for PipelineRun templates — each `oc create` embeds params.
 
@@ -119,8 +121,8 @@ To change batch size permanently, edit that file and `oc apply` is not required 
 ### Consumer offsets (short version)
 
 - Repeated runs use the **same consumer group IDs** by default → each run continues from **committed offsets**, not “from the beginning” every time.
-- **`route-auto-offset-reset: earliest`** matters when the route group has **no** committed offset yet; otherwise committed offsets win.
-- Course text suggests **`auto_offset_reset='earliest'`** for raw backlog replay when appropriate; for ongoing operation, committed offsets are normal.
+- `**route-auto-offset-reset: earliest`** matters when the route group has **no** committed offset yet; otherwise committed offsets win.
+- Course text suggests `**auto_offset_reset='earliest'`** for raw backlog replay when appropriate; for ongoing operation, committed offsets are normal.
 
 ## Phase 1 task order
 
@@ -129,11 +131,11 @@ Inside each `PipelineRun`:
 1. **validate-events** — consumes raw, writes **validated**.
 2. **route-and-enrich** — runs **after** validate (`runAfter`); consumes **validated**, writes typed topics.
 
-If validate has not finished, **route does not start**. Logs may show validate “done” in stdout before Tekton marks the TaskRun **Succeeded** — trust **`oc get taskrun`** for completion.
+If validate has not finished, **route does not start**. Logs may show validate “done” in stdout before Tekton marks the TaskRun **Succeeded** — trust `**oc get taskrun`** for completion.
 
 ## Shell gotchas (zsh)
 
-- Do **not** put **`#` comments** on the same line as `end=$(( ... ))` in a pasted block; zsh may error (`command not found: #`). Put comments on their own lines or omit them.
+- Do **not** put `**#` comments** on the same line as `end=$(( ... ))` in a pasted block; zsh may error (`command not found: #`). Put comments on their own lines or omit them.
 - macOS often has **no `watch`** — use a `while true; do ... sleep 3; done` loop instead.
 
 ## Recommended: sequential Phase 1 loop (one run at a time)
@@ -168,11 +170,11 @@ while ...; do
 done
 ```
 
-starts a **new** run every interval **whether or not** the previous run finished. That stacks concurrent `PipelineRun`s, triggers **memory quota** errors, and makes Phase 1 hard to reason about. Prefer **`oc wait`** (above).
+starts a **new** run every interval **whether or not** the previous run finished. That stacks concurrent `PipelineRun`s, triggers **memory quota** errors, and makes Phase 1 hard to reason about. Prefer `**oc wait`** (above).
 
 ### Optional: guard “only if nothing Running”
 
-If you must use sleep between launches, gate on **Tekton `PipelineRun` status**. For `oc get pipelinerun` **without** `--no-headers`, the **`Running`** state is in column **3** (`REASON`):
+If you must use sleep between launches, gate on **Tekton `PipelineRun` status**. For `oc get pipelinerun` **without** `--no-headers`, the `**Running`** state is in column **3** (`REASON`):
 
 ```bash
 running=$(oc get pipelinerun -n "$NAMESPACE" --no-headers \
@@ -183,15 +185,15 @@ Using the wrong column caused false “no runs” and double launches.
 
 ## Namespace memory quota and Tekton tasks
 
-OpenShift project quotas (for example **8Gi** total `limits.memory`) can block new Task pods with **`ExceededResourceQuota`**. Symptoms:
+OpenShift project quotas (for example **8Gi** total `limits.memory`) can block new Task pods with `**ExceededResourceQuota`**. Symptoms:
 
 - `validate` or `route` TaskRuns stay **Pending** / retry.
-- Events mention **`requested: limits.memory=4Gi`** vs **`limited: limits.memory=8Gi`**.
+- Events mention `**requested: limits.memory=4Gi`** vs `**limited: limits.memory=8Gi**`.
 
 Mitigations:
 
 1. **Only one Phase 1 run in flight** (sequential loop above).
-2. Keep **explicit low `computeResources`** on **validate** and **route** steps in **`tekton/tasks.yaml`** (for example **512Mi** limit per step after patch) and **re-apply** to the cluster.
+2. Keep **explicit low `computeResources`** on **validate** and **route** steps in `**tekton/tasks.yaml`** (for example **512Mi** limit per step after patch) and **re-apply** to the cluster.
 3. Avoid launching many `PipelineRun`s in parallel.
 
 After editing tasks, run:
@@ -233,7 +235,7 @@ oc get taskrun "${PR}-validate" -n "$NAMESPACE" \
   -o jsonpath='Start: {.status.startTime}{"\n"}End:   {.status.completionTime}{"\n"}'
 ```
 
-Same pattern for **`${PR}-route-and-enrich`** to compare validate vs route time.
+Same pattern for `**${PR}-route-and-enrich**` to compare validate vs route time.
 
 ## Cancelling runs
 
@@ -296,13 +298,16 @@ The script:
 - Samples recent messages from typed topics.
 - Samples typed-topic messages only to find the latest event-time upper bound.
 - Uses `batch_window_runs` as the default cursor (`EVENTTIME_CURSOR_MODE=db`) to find missing successful hourly windows through that upper bound.
+- Refreshes the latest sampled event-time hour when DB cursor mode finds no missing windows (`EVENTTIME_REFRESH_LATEST_WHEN_COVERED=1`, default). This keeps live collection moving when new Kafka messages keep arriving with payload timestamps in the same hour.
 - Initializes the cursor from the latest sampled hour minus `EVENTTIME_LOOKBACK_HOURS - 1`; override with `EVENTTIME_CURSOR_START_UTC` to force a starting hour.
 - Processes at most `EVENTTIME_MAX_WINDOWS_PER_CHECK` windows each Spark cycle so long backfills do not starve Phase 1.
 - Launches Spark for that event-time window with a unique `batch_id`.
 - Logs Phase 1 summaries and Spark `[ANALYTICS]` lines to `LOG_FILE`.
 - Cancels active PipelineRuns and deletes the Spark job on `Ctrl+C`.
 
-Spark reads Kafka with **`startingOffsets`/`endingOffsets`** batch semantics but **filters by event time** using `WINDOW_START_UTC` / `WINDOW_END_UTC`. A successful Spark job with `rows_written_total=0` usually means the selected window did not match the payload timestamps.
+Spark reads Kafka with `**startingOffsets`/`endingOffsets**` batch semantics but **filters by event time** using `WINDOW_START_UTC` / `WINDOW_END_UTC`. A successful Spark job with `rows_written_total=0` usually means the selected window did not match the payload timestamps.
+
+For a strict one-pass historical backfill, set `EVENTTIME_REFRESH_LATEST_WHEN_COVERED=0` so succeeded windows are treated as final and skipped on later checks.
 
 If you need to force a known event-time window manually:
 
@@ -390,6 +395,7 @@ The current recommended mode uses the DB-driven event-time cursor:
 - Spark checks after every Phase 1 run.
 - Kafka sampling only finds the latest event-time upper bound.
 - `batch_window_runs` decides which hourly windows are still missing.
+- If no DB windows are missing, the orchestrator refreshes the latest sampled event-time hour by default. This is useful when the course feed keeps producing records whose payload timestamps are pinned to the same old hour.
 - Up to `EVENTTIME_MAX_WINDOWS_PER_CHECK` missing windows are processed per Spark cycle.
 
 Run:
@@ -406,16 +412,71 @@ CONSUMER_TIMEOUT_MS=60000 \
 SPARK_EVERY_PHASE1_RUNS=1 \
 EVENTTIME_LOOKBACK_HOURS=2 \
 EVENTTIME_MAX_WINDOWS_PER_CHECK=4 \
-EVENTTIME_SAMPLE_MESSAGES=50 \
-EVENTTIME_SAMPLE_TIMEOUT_MS=2000 \
+EVENTTIME_SAMPLE_MESSAGES=200 \
+EVENTTIME_SAMPLE_TIMEOUT_MS=15000 \
 LOG_FILE=logs/runtime/five-hour-continuous.log \
 bash scripts/run-phase1-spark-orchestrated.sh
 ```
 
+### Sampler tuning note
+
+In this environment, sampler settings that are too small can produce false negatives (`no typed-topic event timestamps found`) even when Phase 1 route logs show healthy nonzero output.
+
+Use:
+
+- `EVENTTIME_SAMPLE_MESSAGES=200`
+- `EVENTTIME_SAMPLE_TIMEOUT_MS=15000`
+
+The issue was a Kafka console-consumer timeout with low timeout/slice values, not missing typed-topic data.
+
+### Isolated sampler test
+
+Use this to verify sampler behavior directly inside the Kafka pod:
+
+```bash
+export NAMESPACE=ds551-2026-spring-a5f0d1
+POD=$(oc get pods -n "$NAMESPACE" --no-headers | awk '$1 ~ /kafka/ && $3=="Running"{print $1; exit}')
+
+oc exec -n "$NAMESPACE" "$POD" -- /bin/bash -lc '
+set -euo pipefail
+BOOT=kafka:9092
+TOPIC=ds551-s26.team02.symptom_reports
+
+OFFS=$(kafka-get-offsets --bootstrap-server "$BOOT" --topic "$TOPIC" --time -1)
+echo "$OFFS"
+
+echo "$OFFS" | while IFS=: read -r T P L; do
+  [ -n "$L" ] || continue
+  [ "$L" -gt 0 ] || continue
+  START=$(( L > 200 ? L - 200 : 0 ))
+  MAX=$(( L - START ))
+  echo "partition=$P start=$START max=$MAX"
+
+  kafka-console-consumer --bootstrap-server "$BOOT" \
+    --topic "$T" --partition "$P" --offset "$START" \
+    --max-messages "$MAX" --timeout-ms 15000 \
+  | python3 -c "import sys,json
+count=0
+for line in sys.stdin:
+  try:
+    o=json.loads(line)
+    ts=o.get(\"timestamp\") or o.get(\"administered_at\")
+    if ts:
+      print(ts); count+=1
+      if count>=10: break
+  except: pass
+print(f\"timestamps_found={count}\")"
+done
+'
+```
+
+If this prints timestamps, keep DB cursor mode and raise sampler timeout/messages as above.
+
 ## Summary
 
 1. Use **real** raw Kafka traffic unless loadgen is explicitly needed.
-2. Prefer **`scripts/run-phase1-spark-orchestrated.sh`** for long runs; it keeps Phase 1 sequential and launches Spark without quota overlap.
+2. Prefer `**scripts/run-phase1-spark-orchestrated.sh`** for long runs; it keeps Phase 1 sequential and launches Spark without quota overlap.
 3. Spark should process **payload event-time windows**, not blindly the latest wall-clock hour.
 4. A successful Spark run with `rows_written_total=0` usually means the selected window does not match the event timestamps in the typed topics.
-5. Tune **`batch-size`**, **`SPARK_EVERY_PHASE1_RUNS`**, and **`EVENTTIME_LOOKBACK_HOURS`** so validate+route complete reliably and Spark has enough routed data to aggregate without missing late event-time windows.
+5. Tune `**batch-size`**, `**SPARK_EVERY_PHASE1_RUNS**`, and `**EVENTTIME_LOOKBACK_HOURS**` so validate+route complete reliably and Spark has enough routed data to aggregate without missing late event-time windows.
+

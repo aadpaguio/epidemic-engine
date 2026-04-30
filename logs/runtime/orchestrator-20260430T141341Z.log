@@ -1,0 +1,49 @@
+[2026-04-30T14:13:41Z] [orchestrator] logging to logs/runtime/orchestrator-20260430T141341Z.log
+[2026-04-30T14:13:41Z] [orchestrator] namespace=ds551-2026-spring-a5f0d1 duration_sec=10800
+[2026-04-30T14:13:41Z] [orchestrator] initial spark baseline window=2026-04-30T13:00:00Z
+[2026-04-30T14:13:41Z] [orchestrator] validate_group=team02-validate-fresh-20260430T141341Z
+[2026-04-30T14:13:41Z] [orchestrator] route_group=team02-route-fresh-20260430T141341Z
+[2026-04-30T14:13:41Z] [orchestrator] spark_window_mode=eventtime
+[2026-04-30T14:13:41Z] [orchestrator] spark_every_phase1_runs=1
+[2026-04-30T14:13:41Z] [orchestrator] eventtime_lookback_hours=2
+[2026-04-30T14:13:41Z] [orchestrator] eventtime_max_windows_per_check=4
+[2026-04-30T14:13:41Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-cp5cw
+[2026-04-30T14:13:41Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-cp5cw
+pipelinerun.tekton.dev/phase1-continuous-run-cp5cw condition met
+[2026-04-30T14:15:46Z] [phase1] status for phase1-continuous-run-cp5cw
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-cp5cw   True        Succeeded   2m5s        0s
+phase1-continuous-run-cp5cw-route-and-enrich                    True        Succeeded          15s         0s
+phase1-continuous-run-cp5cw-validate                            True        Succeeded          2m5s        18s
+[2026-04-30T14:15:47Z] [phase1] summary logs for phase1-continuous-run-cp5cw
+[pod/phase1-continuous-run-cp5cw-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 250, "valid_count": 250, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2474067}}
+[pod/phase1-continuous-run-cp5cw-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=250 valid=250 dlq=0 errors=0
+[pod/phase1-continuous-run-cp5cw-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 250, "valid_count": 189, "silent_dropped": 61, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 1900}}
+[pod/phase1-continuous-run-cp5cw-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=250 valid=189 silent_dropped=61 dlq=0 errors=0
+[2026-04-30T14:15:47Z] [orchestrator] phase1_runs_since_spark=1/1
+[2026-04-30T14:15:48Z] [spark] sampling latest typed-topic event timestamps from kafka-team02-9df777b8-ggpv8
+[2026-04-30T14:17:40Z] [spark] no typed-topic event timestamps found; continuing Phase 1
+[2026-04-30T14:17:40Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-8qffk
+[2026-04-30T14:17:40Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-8qffk
+pipelinerun.tekton.dev/phase1-continuous-run-8qffk condition met
+[2026-04-30T14:18:14Z] [phase1] status for phase1-continuous-run-8qffk
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-8qffk   True        Succeeded   34s         0s
+phase1-continuous-run-8qffk-route-and-enrich                    True        Succeeded          15s         0s
+phase1-continuous-run-8qffk-validate                            True        Succeeded          34s         18s
+[2026-04-30T14:18:14Z] [phase1] summary logs for phase1-continuous-run-8qffk
+[pod/phase1-continuous-run-8qffk-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 250, "valid_count": 195, "silent_dropped": 55, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 2400}}
+[pod/phase1-continuous-run-8qffk-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=250 valid=195 silent_dropped=55 dlq=0 errors=0
+[pod/phase1-continuous-run-8qffk-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 250, "valid_count": 250, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2474476}}
+[pod/phase1-continuous-run-8qffk-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=250 valid=250 dlq=0 errors=0
+[2026-04-30T14:18:15Z] [spark] sampling latest typed-topic event timestamps from kafka-team02-9df777b8-ggpv8
+[2026-04-30T14:20:04Z] [spark] no typed-topic event timestamps found; continuing Phase 1
+[2026-04-30T14:20:05Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-s6x96
+[2026-04-30T14:20:05Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-s6x96
+[2026-04-30T14:20:09Z] [orchestrator] stop requested; cancelling active runs
+[2026-04-30T14:20:10Z] [phase1] status for phase1-continuous-run-s6x96
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-s6x96   False       Cancelled   6s          1s
+phase1-continuous-run-s6x96-validate                            False       TaskRunCancelled   6s          1s
+[2026-04-30T14:20:11Z] [phase1] summary logs for phase1-continuous-run-s6x96
+[2026-04-30T14:20:11Z] [orchestrator] stopped by user

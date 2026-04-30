@@ -37,6 +37,7 @@ EVENTTIME_LOOKBACK_HOURS="${EVENTTIME_LOOKBACK_HOURS:-2}"
 EVENTTIME_MAX_WINDOWS_PER_CHECK="${EVENTTIME_MAX_WINDOWS_PER_CHECK:-4}"
 EVENTTIME_CURSOR_START_UTC="${EVENTTIME_CURSOR_START_UTC:-}"
 EVENTTIME_CURSOR_MODE="${EVENTTIME_CURSOR_MODE:-db}"
+EVENTTIME_REFRESH_LATEST_WHEN_COVERED="${EVENTTIME_REFRESH_LATEST_WHEN_COVERED:-1}"
 DB_POD="${DB_POD:-timescaledb-0}"
 DB_NAME="${DB_NAME:-epidemic}"
 DB_USER="${DB_USER:-spark_writer}"
@@ -438,6 +439,7 @@ main() {
   log "[orchestrator] eventtime_lookback_hours=${EVENTTIME_LOOKBACK_HOURS}"
   log "[orchestrator] eventtime_max_windows_per_check=${EVENTTIME_MAX_WINDOWS_PER_CHECK}"
   log "[orchestrator] eventtime_cursor_mode=${EVENTTIME_CURSOR_MODE}"
+  log "[orchestrator] eventtime_refresh_latest_when_covered=${EVENTTIME_REFRESH_LATEST_WHEN_COVERED}"
   if [ -n "$eventtime_cursor_start" ]; then
     log "[orchestrator] eventtime_cursor_start=${eventtime_cursor_start}"
   fi
@@ -456,6 +458,10 @@ main() {
             resolved_windows="$(plan_eventtime_windows_from_db "$latest_eventtime_start" "$eventtime_cursor_start" || true)"
             if [ -z "$resolved_windows" ]; then
               log "[spark] DB cursor found no missing event-time windows through ${latest_eventtime_start}"
+              if [ "$EVENTTIME_REFRESH_LATEST_WHEN_COVERED" = "1" ]; then
+                resolved_windows="$(plan_eventtime_windows "$latest_eventtime_start" "$latest_eventtime_start")"
+                log "[spark] refreshing latest covered event-time window ${latest_eventtime_start}"
+              fi
             fi
           else
             resolved_windows="$(plan_eventtime_windows "$latest_eventtime_start" "$eventtime_cursor_start")"
@@ -477,7 +483,11 @@ main() {
           done <<< "$resolved_windows"
           phase1_runs_since_spark=0
         else
-          log "[spark] no typed-topic event timestamps found; continuing Phase 1"
+          if [ -z "$latest_eventtime_start" ]; then
+            log "[spark] no typed-topic event timestamps found; continuing Phase 1"
+          else
+            log "[spark] no event-time windows selected; continuing Phase 1"
+          fi
           if run_one_phase1; then
             phase1_runs_since_spark=$(( phase1_runs_since_spark + 1 ))
           fi

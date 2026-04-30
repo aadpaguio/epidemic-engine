@@ -1,0 +1,13 @@
+[project]
+name = "epidemic-engine-2-smith-fergusonhull-nguyen-paguio"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "streamlit",
+    "pandas",
+    "plotly",
+    "psycopg2-binary",
+    "python-dotenv",
+]
