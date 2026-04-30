@@ -1,0 +1,62 @@
+[2026-04-30T15:02:29Z] [orchestrator] logging to logs/runtime/eventtime-refresh-test.log
+[2026-04-30T15:02:29Z] [orchestrator] namespace=ds551-2026-spring-a5f0d1 duration_sec=900
+[2026-04-30T15:02:29Z] [orchestrator] initial spark baseline window=2026-04-30T14:00:00Z
+[2026-04-30T15:02:29Z] [orchestrator] validate_group=team02-validate-fresh-20260430T150229Z
+[2026-04-30T15:02:29Z] [orchestrator] route_group=team02-route-fresh-20260430T150229Z
+[2026-04-30T15:02:29Z] [orchestrator] spark_window_mode=eventtime
+[2026-04-30T15:02:29Z] [orchestrator] spark_every_phase1_runs=1
+[2026-04-30T15:02:29Z] [orchestrator] eventtime_lookback_hours=2
+[2026-04-30T15:02:29Z] [orchestrator] eventtime_max_windows_per_check=4
+[2026-04-30T15:02:29Z] [orchestrator] eventtime_cursor_mode=db
+[2026-04-30T15:02:29Z] [orchestrator] eventtime_refresh_latest_when_covered=1
+[2026-04-30T15:02:29Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-b6qlg
+[2026-04-30T15:02:29Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-b6qlg
+pipelinerun.tekton.dev/phase1-continuous-run-b6qlg condition met
+[2026-04-30T15:08:31Z] [phase1] status for phase1-continuous-run-b6qlg
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-b6qlg   True        Succeeded   6m2s        0s
+phase1-continuous-run-b6qlg-route-and-enrich                    True        Succeeded          16s         1s
+phase1-continuous-run-b6qlg-validate                            True        Succeeded          6m3s        4m17s
+[2026-04-30T15:08:32Z] [phase1] summary logs for phase1-continuous-run-b6qlg
+[pod/phase1-continuous-run-b6qlg-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 250, "valid_count": 250, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2482130}}
+[pod/phase1-continuous-run-b6qlg-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=250 valid=250 dlq=0 errors=0
+[pod/phase1-continuous-run-b6qlg-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 250, "valid_count": 189, "silent_dropped": 61, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 1900}}
+[pod/phase1-continuous-run-b6qlg-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=250 valid=189 silent_dropped=61 dlq=0 errors=0
+[2026-04-30T15:08:32Z] [orchestrator] phase1_runs_since_spark=1/1
+[2026-04-30T15:08:33Z] [spark] sampling latest typed-topic event timestamps from kafka-team02-9df777b8-ggpv8
+[2026-04-30T15:10:22Z] [spark] latest sampled event-time hour 2026-04-30T00:00:00Z
+[2026-04-30T15:10:22Z] [spark] selected event-time window 2026-04-29T23:00:00Z -> 2026-04-30T00:00:00Z
+[2026-04-30T15:10:23Z] [spark] launched for 2026-04-29T23:00:00Z -> 2026-04-30T00:00:00Z (batch_id=eventtime-2026-04-29T23-20260430T151022Z)
+[2026-04-30T15:10:23Z] [spark] waiting for job/epidemic-spark-etl
+job.batch/epidemic-spark-etl condition met
+[2026-04-30T15:11:47Z] [spark] job status for epidemic-spark-etl
+NAME                 STATUS     COMPLETIONS   DURATION   AGE   CONTAINERS   IMAGES               SELECTOR
+epidemic-spark-etl   Complete   1/1           84s        84s   spark-etl    apache/spark:3.5.0   batch.kubernetes.io/controller-uid=046b729a-c7b0-482c-b183-a4432073472f
+NAME                       READY   STATUS      RESTARTS   AGE   IP             NODE    NOMINATED NODE   READINESS GATES
+epidemic-spark-etl-snqnb   0/1     Completed   0          84s   10.129.5.166   wrk-4   <none>           <none>
+[2026-04-30T15:11:47Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-snqnb", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T151022Z", "batch_id": "eventtime-2026-04-29T23-20260430T151022Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 0, "rows_written": 0, "write_mode": "append", "duration_ms": 2053}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-snqnb", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T151022Z", "batch_id": "eventtime-2026-04-29T23-20260430T151022Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 0, "rows_written": 0, "write_mode": "append", "duration_ms": 2126}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-snqnb", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T151022Z", "batch_id": "eventtime-2026-04-29T23-20260430T151022Z", "status": "degraded", "total_consumed": 10655, "parse_ok_count": 0, "skipped_count": 0, "error_count": 0, "rows_written_total": 0, "rows_computed_total": 0, "jdbc_skipped": false, "started_at": "2026-04-30T15:10:50.956800+00:00", "completed_at": "2026-04-30T15:11:43.552434+00:00", "duration_ms": 52595, "empty_topics": ["ds551-s26.team02.symptom_reports", "ds551-s26.team02.clinic_visits", "ds551-s26.team02.hospital_admissions", "ds551-s26.team02.vaccination_records"], "skip_rate_pct": 0.0, "window_start_utc": "2026-04-29T23:00:00+00:00", "window_end_utc": "2026-04-30T00:00:00+00:00"}
+[2026-04-30T15:11:48Z] [spark] selected event-time window 2026-04-30T00:00:00Z -> 2026-04-30T01:00:00Z
+[2026-04-30T15:11:48Z] [spark] launched for 2026-04-30T00:00:00Z -> 2026-04-30T01:00:00Z (batch_id=eventtime-2026-04-30T00-20260430T151148Z)
+[2026-04-30T15:11:48Z] [spark] waiting for job/epidemic-spark-etl
+job.batch/epidemic-spark-etl condition met
+[2026-04-30T15:13:12Z] [spark] job status for epidemic-spark-etl
+NAME                 STATUS     COMPLETIONS   DURATION   AGE   CONTAINERS   IMAGES               SELECTOR
+epidemic-spark-etl   Complete   1/1           84s        84s   spark-etl    apache/spark:3.5.0   batch.kubernetes.io/controller-uid=447b8493-ff3d-40f3-abff-75bd2d9c7e45
+NAME                       READY   STATUS      RESTARTS   AGE   IP            NODE    NOMINATED NODE   READINESS GATES
+epidemic-spark-etl-s2rtk   0/1     Completed   0          84s   10.131.4.32   wrk-0   <none>           <none>
+[2026-04-30T15:13:12Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-s2rtk", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T151148Z", "batch_id": "eventtime-2026-04-30T00-20260430T151148Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3003}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-s2rtk", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T151148Z", "batch_id": "eventtime-2026-04-30T00-20260430T151148Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 89, "rows_written": 89, "write_mode": "append", "duration_ms": 2934}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-s2rtk", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T151148Z", "batch_id": "eventtime-2026-04-30T00-20260430T151148Z", "status": "healthy", "total_consumed": 10655, "parse_ok_count": 2724, "skipped_count": 0, "error_count": 0, "rows_written_total": 1272, "rows_computed_total": 1272, "jdbc_skipped": false, "started_at": "2026-04-30T15:12:09.693471+00:00", "completed_at": "2026-04-30T15:13:08.371614+00:00", "duration_ms": 58678, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-04-30T00:00:00+00:00", "window_end_utc": "2026-04-30T01:00:00+00:00"}
+[2026-04-30T15:13:13Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-96m2n
+[2026-04-30T15:13:13Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-96m2n
+[2026-04-30T15:13:25Z] [orchestrator] stop requested; cancelling active runs
+[2026-04-30T15:13:26Z] [phase1] status for phase1-continuous-run-96m2n
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-96m2n   False       Cancelled   13s         0s
+phase1-continuous-run-96m2n-validate                            False       TaskRunCancelled   13s         0s
+[2026-04-30T15:13:26Z] [phase1] summary logs for phase1-continuous-run-96m2n
+[2026-04-30T15:13:27Z] [orchestrator] stopped by user

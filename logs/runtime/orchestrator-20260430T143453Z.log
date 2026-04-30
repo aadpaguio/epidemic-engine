@@ -1,0 +1,130 @@
+[2026-04-30T14:34:53Z] [orchestrator] logging to logs/runtime/orchestrator-20260430T143453Z.log
+[2026-04-30T14:34:53Z] [orchestrator] namespace=ds551-2026-spring-a5f0d1 duration_sec=10800
+[2026-04-30T14:34:53Z] [orchestrator] initial spark baseline window=2026-04-30T13:00:00Z
+[2026-04-30T14:34:53Z] [orchestrator] validate_group=team02-validate-group
+[2026-04-30T14:34:53Z] [orchestrator] route_group=team02-route-group
+[2026-04-30T14:34:53Z] [orchestrator] spark_window_mode=eventtime
+[2026-04-30T14:34:53Z] [orchestrator] spark_every_phase1_runs=1
+[2026-04-30T14:34:53Z] [orchestrator] eventtime_lookback_hours=2
+[2026-04-30T14:34:53Z] [orchestrator] eventtime_max_windows_per_check=4
+[2026-04-30T14:34:53Z] [orchestrator] eventtime_cursor_mode=db
+[2026-04-30T14:34:53Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-nd8mr
+[2026-04-30T14:34:53Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-nd8mr
+pipelinerun.tekton.dev/phase1-continuous-run-nd8mr condition met
+[2026-04-30T14:36:25Z] [phase1] status for phase1-continuous-run-nd8mr
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-nd8mr   True        Succeeded   92s         1s
+phase1-continuous-run-nd8mr-route-and-enrich                    True        Succeeded          15s         1s
+phase1-continuous-run-nd8mr-validate                            True        Succeeded          92s         76s
+[2026-04-30T14:36:26Z] [phase1] summary logs for phase1-continuous-run-nd8mr
+[pod/phase1-continuous-run-nd8mr-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 250, "valid_count": 202, "silent_dropped": 48, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 12132}}
+[pod/phase1-continuous-run-nd8mr-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=250 valid=202 silent_dropped=48 dlq=0 errors=0
+[pod/phase1-continuous-run-nd8mr-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 250, "valid_count": 250, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2447812}}
+[pod/phase1-continuous-run-nd8mr-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=250 valid=250 dlq=0 errors=0
+[2026-04-30T14:36:27Z] [orchestrator] phase1_runs_since_spark=1/1
+[2026-04-30T14:36:27Z] [spark] sampling latest typed-topic event timestamps from kafka-team02-9df777b8-ggpv8
+[2026-04-30T14:38:24Z] [spark] latest sampled event-time hour 2026-04-30T00:00:00Z
+[2026-04-30T14:38:24Z] [spark] selected event-time window 2026-04-29T23:00:00Z -> 2026-04-30T00:00:00Z
+[2026-04-30T14:38:25Z] [spark] launched for 2026-04-29T23:00:00Z -> 2026-04-30T00:00:00Z (batch_id=eventtime-2026-04-29T23-20260430T143824Z)
+[2026-04-30T14:38:25Z] [spark] waiting for job/epidemic-spark-etl
+job.batch/epidemic-spark-etl condition met
+[2026-04-30T14:39:46Z] [spark] job status for epidemic-spark-etl
+NAME                 STATUS     COMPLETIONS   DURATION   AGE   CONTAINERS   IMAGES               SELECTOR
+epidemic-spark-etl   Complete   1/1           81s        81s   spark-etl    apache/spark:3.5.0   batch.kubernetes.io/controller-uid=30e9147b-5848-404a-b3ce-ba62bab2ea0c
+NAME                       READY   STATUS      RESTARTS   AGE   IP             NODE    NOMINATED NODE   READINESS GATES
+epidemic-spark-etl-rqdvl   0/1     Completed   0          81s   10.130.4.236   wrk-8   <none>           <none>
+[2026-04-30T14:39:46Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-rqdvl", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T143824Z", "batch_id": "eventtime-2026-04-29T23-20260430T143824Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 0, "rows_written": 0, "write_mode": "append", "duration_ms": 2205}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-rqdvl", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T143824Z", "batch_id": "eventtime-2026-04-29T23-20260430T143824Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 0, "rows_written": 0, "write_mode": "append", "duration_ms": 1855}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-rqdvl", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T143824Z", "batch_id": "eventtime-2026-04-29T23-20260430T143824Z", "status": "degraded", "total_consumed": 9682, "parse_ok_count": 0, "skipped_count": 0, "error_count": 0, "rows_written_total": 0, "rows_computed_total": 0, "jdbc_skipped": false, "started_at": "2026-04-30T14:38:47.719357+00:00", "completed_at": "2026-04-30T14:39:37.662019+00:00", "duration_ms": 49942, "empty_topics": ["ds551-s26.team02.symptom_reports", "ds551-s26.team02.clinic_visits", "ds551-s26.team02.hospital_admissions", "ds551-s26.team02.vaccination_records"], "skip_rate_pct": 0.0, "window_start_utc": "2026-04-29T23:00:00+00:00", "window_end_utc": "2026-04-30T00:00:00+00:00"}
+[2026-04-30T14:39:47Z] [spark] selected event-time window 2026-04-30T00:00:00Z -> 2026-04-30T01:00:00Z
+[2026-04-30T14:39:47Z] [spark] launched for 2026-04-30T00:00:00Z -> 2026-04-30T01:00:00Z (batch_id=eventtime-2026-04-30T00-20260430T143947Z)
+[2026-04-30T14:39:47Z] [spark] waiting for job/epidemic-spark-etl
+job.batch/epidemic-spark-etl condition met
+[2026-04-30T14:41:11Z] [spark] job status for epidemic-spark-etl
+NAME                 STATUS     COMPLETIONS   DURATION   AGE   CONTAINERS   IMAGES               SELECTOR
+epidemic-spark-etl   Complete   1/1           84s        85s   spark-etl    apache/spark:3.5.0   batch.kubernetes.io/controller-uid=c765072e-a6d5-4023-a964-594a2b864dc9
+NAME                       READY   STATUS      RESTARTS   AGE   IP             NODE    NOMINATED NODE   READINESS GATES
+epidemic-spark-etl-l9kx2   0/1     Completed   0          85s   10.130.4.237   wrk-8   <none>           <none>
+[2026-04-30T14:41:12Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-l9kx2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T143947Z", "batch_id": "eventtime-2026-04-30T00-20260430T143947Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 1948}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-l9kx2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T143947Z", "batch_id": "eventtime-2026-04-30T00-20260430T143947Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 88, "rows_written": 88, "write_mode": "append", "duration_ms": 2359}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-l9kx2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "hourly-20260430T143947Z", "batch_id": "eventtime-2026-04-30T00-20260430T143947Z", "status": "healthy", "total_consumed": 9682, "parse_ok_count": 2127, "skipped_count": 0, "error_count": 0, "rows_written_total": 1027, "rows_computed_total": 1027, "jdbc_skipped": false, "started_at": "2026-04-30T14:40:12.121972+00:00", "completed_at": "2026-04-30T14:41:07.226398+00:00", "duration_ms": 55104, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-04-30T00:00:00+00:00", "window_end_utc": "2026-04-30T01:00:00+00:00"}
+[2026-04-30T14:41:13Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-vh5km
+[2026-04-30T14:41:13Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-vh5km
+pipelinerun.tekton.dev/phase1-continuous-run-vh5km condition met
+[2026-04-30T14:42:44Z] [phase1] status for phase1-continuous-run-vh5km
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-vh5km   True        Succeeded   91s         0s
+phase1-continuous-run-vh5km-route-and-enrich                    True        Succeeded          15s         1s
+phase1-continuous-run-vh5km-validate                            True        Succeeded          91s         76s
+[2026-04-30T14:42:44Z] [phase1] summary logs for phase1-continuous-run-vh5km
+[pod/phase1-continuous-run-vh5km-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 250, "valid_count": 250, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2448312}}
+[pod/phase1-continuous-run-vh5km-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=250 valid=250 dlq=0 errors=0
+[pod/phase1-continuous-run-vh5km-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 250, "valid_count": 198, "silent_dropped": 52, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 12632}}
+[pod/phase1-continuous-run-vh5km-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=250 valid=198 silent_dropped=52 dlq=0 errors=0
+[2026-04-30T14:42:45Z] [orchestrator] phase1_runs_since_spark=1/1
+[2026-04-30T14:42:45Z] [spark] sampling latest typed-topic event timestamps from kafka-team02-9df777b8-ggpv8
+[2026-04-30T14:44:36Z] [spark] latest sampled event-time hour 2026-04-30T00:00:00Z
+[2026-04-30T14:44:37Z] [spark] DB cursor found no missing event-time windows through 2026-04-30T00:00:00Z
+[2026-04-30T14:44:37Z] [spark] no typed-topic event timestamps found; continuing Phase 1
+[2026-04-30T14:44:37Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-9d2l9
+[2026-04-30T14:44:37Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-9d2l9
+pipelinerun.tekton.dev/phase1-continuous-run-9d2l9 condition met
+[2026-04-30T14:46:08Z] [phase1] status for phase1-continuous-run-9d2l9
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-9d2l9   True        Succeeded   92s         1s
+phase1-continuous-run-9d2l9-route-and-enrich                    True        Succeeded          16s         1s
+phase1-continuous-run-9d2l9-validate                            True        Succeeded          91s         76s
+[2026-04-30T14:46:09Z] [phase1] summary logs for phase1-continuous-run-9d2l9
+[pod/phase1-continuous-run-9d2l9-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 250, "valid_count": 195, "silent_dropped": 55, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 13132}}
+[pod/phase1-continuous-run-9d2l9-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=250 valid=195 silent_dropped=55 dlq=0 errors=0
+[pod/phase1-continuous-run-9d2l9-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 250, "valid_count": 250, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2448812}}
+[pod/phase1-continuous-run-9d2l9-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=250 valid=250 dlq=0 errors=0
+[2026-04-30T14:46:10Z] [spark] sampling latest typed-topic event timestamps from kafka-team02-9df777b8-ggpv8
+[2026-04-30T14:48:08Z] [spark] latest sampled event-time hour 2026-04-30T00:00:00Z
+[2026-04-30T14:48:08Z] [spark] DB cursor found no missing event-time windows through 2026-04-30T00:00:00Z
+[2026-04-30T14:48:08Z] [spark] no typed-topic event timestamps found; continuing Phase 1
+[2026-04-30T14:48:09Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-xlzx4
+[2026-04-30T14:48:09Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-xlzx4
+pipelinerun.tekton.dev/phase1-continuous-run-xlzx4 condition met
+[2026-04-30T14:49:40Z] [phase1] status for phase1-continuous-run-xlzx4
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-xlzx4   True        Succeeded   92s         1s
+phase1-continuous-run-xlzx4-route-and-enrich                    True        Succeeded          16s         1s
+phase1-continuous-run-xlzx4-validate                            True        Succeeded          92s         77s
+[2026-04-30T14:49:41Z] [phase1] summary logs for phase1-continuous-run-xlzx4
+[pod/phase1-continuous-run-xlzx4-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 250, "valid_count": 250, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2449312}}
+[pod/phase1-continuous-run-xlzx4-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=250 valid=250 dlq=0 errors=0
+[pod/phase1-continuous-run-xlzx4-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 250, "valid_count": 196, "silent_dropped": 54, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 13632}}
+[pod/phase1-continuous-run-xlzx4-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=250 valid=196 silent_dropped=54 dlq=0 errors=0
+[2026-04-30T14:49:42Z] [spark] sampling latest typed-topic event timestamps from kafka-team02-9df777b8-ggpv8
+[2026-04-30T14:51:34Z] [spark] latest sampled event-time hour 2026-04-30T00:00:00Z
+[2026-04-30T14:51:34Z] [spark] DB cursor found no missing event-time windows through 2026-04-30T00:00:00Z
+[2026-04-30T14:51:34Z] [spark] no typed-topic event timestamps found; continuing Phase 1
+[2026-04-30T14:51:34Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-bt7c5
+[2026-04-30T14:51:35Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-bt7c5
+pipelinerun.tekton.dev/phase1-continuous-run-bt7c5 condition met
+[2026-04-30T14:53:05Z] [phase1] status for phase1-continuous-run-bt7c5
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-bt7c5   True        Succeeded   91s         1s
+phase1-continuous-run-bt7c5-route-and-enrich                    True        Succeeded          16s         1s
+phase1-continuous-run-bt7c5-validate                            True        Succeeded          91s         76s
+[2026-04-30T14:53:06Z] [phase1] summary logs for phase1-continuous-run-bt7c5
+[pod/phase1-continuous-run-bt7c5-validate-pod/step-validate] [PIPELINE] {"task": "validate-events", "phase": "validate", "status": "healthy", "total_consumed": 250, "valid_count": 250, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.raw:0": 2449812}}
+[pod/phase1-continuous-run-bt7c5-validate-pod/step-validate] SUMMARY validate-events: status=healthy consumed=250 valid=250 dlq=0 errors=0
+[pod/phase1-continuous-run-bt7c5-route-and-enrich-pod/step-route] [PIPELINE] {"task": "route-and-enrich", "phase": "route", "status": "healthy", "total_consumed": 250, "valid_count": 195, "silent_dropped": 55, "dlq_count": 0, "error_count": 0, "final_positions": {"ds551-s26.team02.validated:0": 14132}}
+[pod/phase1-continuous-run-bt7c5-route-and-enrich-pod/step-route] SUMMARY route-and-enrich: status=healthy consumed=250 valid=195 silent_dropped=55 dlq=0 errors=0
+[2026-04-30T14:53:07Z] [spark] sampling latest typed-topic event timestamps from kafka-team02-9df777b8-ggpv8
+[2026-04-30T14:55:55Z] [spark] latest sampled event-time hour 2026-04-30T00:00:00Z
+[2026-04-30T14:55:56Z] [spark] DB cursor found no missing event-time windows through 2026-04-30T00:00:00Z
+[2026-04-30T14:55:56Z] [spark] no typed-topic event timestamps found; continuing Phase 1
+[2026-04-30T14:55:56Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-swjmt
+[2026-04-30T14:55:56Z] [phase1] waiting for pipelinerun.tekton.dev/phase1-continuous-run-swjmt
+[2026-04-30T14:56:18Z] [orchestrator] stop requested; cancelling active runs
+[2026-04-30T14:56:19Z] [phase1] status for phase1-continuous-run-swjmt
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-swjmt   False       Cancelled   23s         0s
+phase1-continuous-run-swjmt-validate                            False       TaskRunCancelled   23s         1s
+[2026-04-30T14:56:20Z] [phase1] summary logs for phase1-continuous-run-swjmt
+[2026-04-30T14:56:20Z] [orchestrator] stopped by user
