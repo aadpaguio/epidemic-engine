@@ -38,6 +38,9 @@ spec:
     - name: route-consumer-group-id
       type: string
       default: "team02-route-group"
+    - name: route-auto-offset-reset
+      type: string
+      default: "earliest"
 
   tasks:
     - name: validate
@@ -89,3 +92,5 @@ spec:
           value: $(params.consumer-timeout-ms)
         - name: consumer-group-id
           value: $(params.route-consumer-group-id)
+        - name: auto-offset-reset
+          value: $(params.route-auto-offset-reset)

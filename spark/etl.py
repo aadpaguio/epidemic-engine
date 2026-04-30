@@ -318,6 +318,7 @@ def parse_kafka_to_payload(kafka_df: DataFrame) -> DataFrame:
         F.col("data.event_type").alias("event_type"),
         F.col("data.timestamp").alias("ts_raw"),
         F.col("data.region").alias("region"),
+        F.col("data.patient_id").alias("patient_id"),
         F.col("data.age").cast("int").alias("age"),
         F.col("data.symptoms").alias("symptoms"),
         severity_for_analytics(F.col("data.severity")).alias("severity"),

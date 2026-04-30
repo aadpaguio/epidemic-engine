@@ -432,6 +432,9 @@ spec:
     - name: consumer-group-id
       type: string
       default: "team02-route-group"
+    - name: auto-offset-reset
+      type: string
+      default: "earliest"
   steps:
     - name: route
       image: python:3.11-slim
@@ -465,6 +468,8 @@ spec:
           value: $(params.consumer-timeout-ms)
         - name: CONSUMER_GROUP_ID
           value: $(params.consumer-group-id)
+        - name: AUTO_OFFSET_RESET
+          value: $(params.auto-offset-reset)
       script: |
         set -e
         pip install --no-cache-dir -q kafka-python-ng
@@ -493,6 +498,11 @@ spec:
         DLQ_TOPIC = os.environ.get("ROUTING_DLQ_TOPIC", "").strip()
         TEAM_ID = os.environ["TEAM_ID"]
         BATCH_SIZE = max(0, int(os.environ.get("BATCH_SIZE", "100")))
+        AUTO_OFFSET_RESET = os.environ.get("AUTO_OFFSET_RESET", "earliest").strip() or "earliest"
+        if AUTO_OFFSET_RESET not in ("earliest", "latest", "none"):
+            raise RuntimeError(
+                f"AUTO_OFFSET_RESET must be earliest, latest, or none; got {AUTO_OFFSET_RESET!r}"
+            )
 
         TYPE_TO_TOPIC = {
             "symptom_report": SYMPTOM_TOPIC,
@@ -557,8 +567,9 @@ spec:
         consumer_kwargs = dict(
             bootstrap_servers=BOOTSTRAP,
             group_id=GROUP,
-            # Prefer forward-only behavior for new groups.
-            auto_offset_reset="latest",
+            # Batch route runs start after validate has already written this run's
+            # records, so new route groups must be allowed to read existing data.
+            auto_offset_reset=AUTO_OFFSET_RESET,
             value_deserializer=lambda b: b,
             enable_auto_commit=False,
         )

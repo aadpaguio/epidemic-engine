@@ -208,6 +208,8 @@ spec:
       value: ${SMOKE_RUN_ID}-validate
     - name: route-consumer-group-id
       value: ${SMOKE_RUN_ID}-route
+    - name: route-auto-offset-reset
+      value: earliest
 YAML
 }
 
