@@ -265,8 +265,12 @@ Use the orchestrator so Phase 1 and Spark share the namespace quota safely and S
 export NAMESPACE=ds551-2026-spring-a5f0d1
 
 FRESH_CONSUMER_GROUPS=1 \
-SPARK_EVERY_PHASE1_RUNS=5 \
+SPARK_EVERY_PHASE1_RUNS=1 \
+EVENTTIME_SAMPLE_TIMEOUT_MS=2000 \
+EVENTTIME_SAMPLE_MESSAGES=50 \
 EVENTTIME_LOOKBACK_HOURS=2 \
+EVENTTIME_MAX_WINDOWS_PER_CHECK=4 \
+EVENTTIME_CURSOR_MODE=db \
 LOG_FILE=logs/runtime/eventtime-continuous.log \
 bash scripts/run-phase1-spark-orchestrated.sh
 ```
@@ -276,8 +280,12 @@ For a quick test:
 ```bash
 DURATION_SEC=600 \
 FRESH_CONSUMER_GROUPS=1 \
-SPARK_EVERY_PHASE1_RUNS=2 \
+SPARK_EVERY_PHASE1_RUNS=1 \
+EVENTTIME_SAMPLE_TIMEOUT_MS=2000 \
+EVENTTIME_SAMPLE_MESSAGES=50 \
 EVENTTIME_LOOKBACK_HOURS=2 \
+EVENTTIME_MAX_WINDOWS_PER_CHECK=4 \
+EVENTTIME_CURSOR_MODE=db \
 LOG_FILE=logs/runtime/eventtime-test.log \
 bash scripts/run-phase1-spark-orchestrated.sh
 ```
@@ -286,7 +294,10 @@ The script:
 
 - Runs Phase 1 sequentially with configurable consumer groups.
 - Samples recent messages from typed topics.
-- Selects the latest hour represented by payload event timestamps plus a configurable lookback (`EVENTTIME_LOOKBACK_HOURS`, default `2`).
+- Samples typed-topic messages only to find the latest event-time upper bound.
+- Uses `batch_window_runs` as the default cursor (`EVENTTIME_CURSOR_MODE=db`) to find missing successful hourly windows through that upper bound.
+- Initializes the cursor from the latest sampled hour minus `EVENTTIME_LOOKBACK_HOURS - 1`; override with `EVENTTIME_CURSOR_START_UTC` to force a starting hour.
+- Processes at most `EVENTTIME_MAX_WINDOWS_PER_CHECK` windows each Spark cycle so long backfills do not starve Phase 1.
 - Launches Spark for that event-time window with a unique `batch_id`.
 - Logs Phase 1 summaries and Spark `[ANALYTICS]` lines to `LOG_FILE`.
 - Cancels active PipelineRuns and deletes the Spark job on `Ctrl+C`.
@@ -327,6 +338,78 @@ LIMIT 20;
 
 SELECT COUNT(*) FROM feature_region_hourly;
 SELECT COUNT(*) FROM feature_vaccination_hourly;
+```
+
+## Clean Run Reset
+
+For a clean performance run, stop active work and truncate only the analytics state. This keeps the database schema, users, secrets, and views intact.
+
+```bash
+export NAMESPACE=ds551-2026-spring-a5f0d1
+
+oc get pipelinerun -n "$NAMESPACE" --no-headers \
+  | awk '$3=="Running"{print $1}' \
+  | while read -r pr; do
+      oc patch pipelinerun "$pr" -n "$NAMESPACE" --type merge -p '{"spec":{"status":"Cancelled"}}'
+    done
+
+oc delete job epidemic-spark-etl -n "$NAMESPACE" --ignore-not-found --wait=false
+
+oc exec -i timescaledb-0 -n "$NAMESPACE" -- psql -U spark_writer -d epidemic -v ON_ERROR_STOP=1 <<'SQL'
+TRUNCATE TABLE
+  batch_window_runs,
+  feature_region_hourly,
+  feature_clinic_hourly,
+  feature_hospital_hourly,
+  feature_diagnosis_hourly,
+  feature_symptom_hourly,
+  feature_vaccination_hourly;
+SQL
+```
+
+Verify:
+
+```bash
+oc exec -i timescaledb-0 -n "$NAMESPACE" -- psql -U spark_writer -d epidemic -P pager=off -c "
+SELECT 'batch_window_runs' AS table_name, COUNT(*) FROM batch_window_runs
+UNION ALL SELECT 'feature_region_hourly', COUNT(*) FROM feature_region_hourly
+UNION ALL SELECT 'feature_clinic_hourly', COUNT(*) FROM feature_clinic_hourly
+UNION ALL SELECT 'feature_hospital_hourly', COUNT(*) FROM feature_hospital_hourly
+UNION ALL SELECT 'feature_diagnosis_hourly', COUNT(*) FROM feature_diagnosis_hourly
+UNION ALL SELECT 'feature_symptom_hourly', COUNT(*) FROM feature_symptom_hourly
+UNION ALL SELECT 'feature_vaccination_hourly', COUNT(*) FROM feature_vaccination_hourly
+ORDER BY table_name;
+"
+```
+
+## Five-Hour Run
+
+The current recommended mode uses the DB-driven event-time cursor:
+
+- Phase 1 runs sequentially.
+- Spark checks after every Phase 1 run.
+- Kafka sampling only finds the latest event-time upper bound.
+- `batch_window_runs` decides which hourly windows are still missing.
+- Up to `EVENTTIME_MAX_WINDOWS_PER_CHECK` missing windows are processed per Spark cycle.
+
+Run:
+
+```bash
+export NAMESPACE=ds551-2026-spring-a5f0d1
+oc project "$NAMESPACE"
+
+DURATION_SEC=18000 \
+FRESH_CONSUMER_GROUPS=1 \
+EVENTTIME_CURSOR_MODE=db \
+BATCH_SIZE=250 \
+CONSUMER_TIMEOUT_MS=60000 \
+SPARK_EVERY_PHASE1_RUNS=1 \
+EVENTTIME_LOOKBACK_HOURS=2 \
+EVENTTIME_MAX_WINDOWS_PER_CHECK=4 \
+EVENTTIME_SAMPLE_MESSAGES=50 \
+EVENTTIME_SAMPLE_TIMEOUT_MS=2000 \
+LOG_FILE=logs/runtime/five-hour-continuous.log \
+bash scripts/run-phase1-spark-orchestrated.sh
 ```
 
 ## Summary

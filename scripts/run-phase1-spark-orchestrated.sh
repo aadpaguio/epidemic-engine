@@ -10,7 +10,7 @@ SPARK_JOB_NAME="${SPARK_JOB_NAME:-epidemic-spark-etl}"
 PHASE1_TIMEOUT_SEC="${PHASE1_TIMEOUT_SEC:-3600}"
 SPARK_TIMEOUT_SEC="${SPARK_TIMEOUT_SEC:-1800}"
 SPARK_WINDOW_MODE="${SPARK_WINDOW_MODE:-eventtime}"
-SPARK_EVERY_PHASE1_RUNS="${SPARK_EVERY_PHASE1_RUNS:-5}"
+SPARK_EVERY_PHASE1_RUNS="${SPARK_EVERY_PHASE1_RUNS:-1}"
 SPARK_BATCH_PREFIX="${SPARK_BATCH_PREFIX:-eventtime}"
 KAFKA_BOOTSTRAP="${KAFKA_BOOTSTRAP:-kafka.ds551-2026-spring-a5f0d1.svc.cluster.local:9092}"
 KAFKA_INTERNAL_BOOTSTRAP="${KAFKA_INTERNAL_BOOTSTRAP:-kafka:9092}"
@@ -23,17 +23,23 @@ HOSPITAL_TOPIC="${HOSPITAL_TOPIC:-ds551-s26.team02.hospital_admissions}"
 VACCINATION_TOPIC="${VACCINATION_TOPIC:-ds551-s26.team02.vaccination_records}"
 ROUTING_DLQ_TOPIC="${ROUTING_DLQ_TOPIC:-ds551-s26.team02.routing_dlq}"
 TEAM_ID="${TEAM_ID:-team02}"
-BATCH_SIZE="${BATCH_SIZE:-100}"
-CONSUMER_TIMEOUT_MS="${CONSUMER_TIMEOUT_MS:-120000}"
+BATCH_SIZE="${BATCH_SIZE:-250}"
+CONSUMER_TIMEOUT_MS="${CONSUMER_TIMEOUT_MS:-60000}"
 ROUTE_AUTO_OFFSET_RESET="${ROUTE_AUTO_OFFSET_RESET:-earliest}"
 FRESH_CONSUMER_GROUPS="${FRESH_CONSUMER_GROUPS:-0}"
 RUN_TAG="${RUN_TAG:-}"
 VALIDATE_GROUP="${VALIDATE_GROUP:-team02-validate-group}"
 ROUTE_GROUP="${ROUTE_GROUP:-team02-route-group}"
 EVENTTIME_KAFKA_POD="${EVENTTIME_KAFKA_POD:-}"
-EVENTTIME_SAMPLE_MESSAGES="${EVENTTIME_SAMPLE_MESSAGES:-200}"
-EVENTTIME_SAMPLE_TIMEOUT_MS="${EVENTTIME_SAMPLE_TIMEOUT_MS:-10000}"
+EVENTTIME_SAMPLE_MESSAGES="${EVENTTIME_SAMPLE_MESSAGES:-50}"
+EVENTTIME_SAMPLE_TIMEOUT_MS="${EVENTTIME_SAMPLE_TIMEOUT_MS:-2000}"
 EVENTTIME_LOOKBACK_HOURS="${EVENTTIME_LOOKBACK_HOURS:-2}"
+EVENTTIME_MAX_WINDOWS_PER_CHECK="${EVENTTIME_MAX_WINDOWS_PER_CHECK:-4}"
+EVENTTIME_CURSOR_START_UTC="${EVENTTIME_CURSOR_START_UTC:-}"
+EVENTTIME_CURSOR_MODE="${EVENTTIME_CURSOR_MODE:-db}"
+DB_POD="${DB_POD:-timescaledb-0}"
+DB_NAME="${DB_NAME:-epidemic}"
+DB_USER="${DB_USER:-spark_writer}"
 LOG_DIR="${LOG_DIR:-logs/runtime}"
 LOG_FILE="${LOG_FILE:-}"
 STOP_REQUESTED=0
@@ -159,14 +165,12 @@ resolve_eventtime_windows() {
   log "[spark] sampling latest typed-topic event timestamps from ${kafka_pod}" >&2
   while read -r topic; do
     sample_recent_topic_messages "$kafka_pod" "$topic" || true
-  done < <(typed_topics) | EVENTTIME_LOOKBACK_HOURS="$EVENTTIME_LOOKBACK_HOURS" python -c '
+  done < <(typed_topics) | python -c '
 import json
-import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 latest = None
-lookback_hours = max(1, int(os.environ.get("EVENTTIME_LOOKBACK_HOURS", "2")))
 
 def parse_ts(value):
     if not isinstance(value, str) or not value:
@@ -195,13 +199,106 @@ if latest is None:
     raise SystemExit(1)
 
 latest_start = latest.replace(minute=0, second=0, microsecond=0)
-first_start = latest_start - timedelta(hours=lookback_hours - 1)
-
-for i in range(lookback_hours):
-    start = first_start + timedelta(hours=i)
-    end = start + timedelta(hours=1)
-    print(start.isoformat().replace("+00:00", "Z"), end.isoformat().replace("+00:00", "Z"))
+print(latest_start.isoformat().replace("+00:00", "Z"))
 '
+}
+
+plan_eventtime_windows() {
+  local latest_start="$1"
+  local cursor_start="$2"
+
+  EVENTTIME_LOOKBACK_HOURS="$EVENTTIME_LOOKBACK_HOURS" \
+  EVENTTIME_MAX_WINDOWS_PER_CHECK="$EVENTTIME_MAX_WINDOWS_PER_CHECK" \
+  EVENTTIME_CURSOR_START_UTC="$cursor_start" \
+  LATEST_EVENTTIME_START_UTC="$latest_start" \
+  python -c '
+import os
+from datetime import datetime, timedelta, timezone
+
+def parse_utc(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+    dt = datetime.fromisoformat(normalized)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+
+def iso(dt):
+    return dt.isoformat().replace("+00:00", "Z")
+
+latest = parse_utc(os.environ["LATEST_EVENTTIME_START_UTC"])
+cursor = parse_utc(os.environ.get("EVENTTIME_CURSOR_START_UTC", ""))
+lookback_hours = max(1, int(os.environ.get("EVENTTIME_LOOKBACK_HOURS", "2")))
+max_windows = max(1, int(os.environ.get("EVENTTIME_MAX_WINDOWS_PER_CHECK", "4")))
+
+if cursor is None:
+    cursor = latest - timedelta(hours=lookback_hours - 1)
+
+count = 0
+while cursor <= latest and count < max_windows:
+    end = cursor + timedelta(hours=1)
+    print(iso(cursor), iso(end))
+    cursor = end
+    count += 1
+'
+}
+
+plan_eventtime_windows_from_db() {
+  local latest_start="$1"
+  local cursor_start="$2"
+
+  oc exec -i "$DB_POD" -n "$NAMESPACE" -- psql -U "$DB_USER" -d "$DB_NAME" -At -v ON_ERROR_STOP=1 \
+    -v latest_start="$latest_start" \
+    -v cursor_start="$cursor_start" \
+    -v lookback_hours="$EVENTTIME_LOOKBACK_HOURS" \
+    -v max_windows="$EVENTTIME_MAX_WINDOWS_PER_CHECK" <<'SQL'
+WITH params AS (
+  SELECT
+    :'latest_start'::timestamptz AS latest_start,
+    NULLIF(:'cursor_start', '')::timestamptz AS cursor_start,
+    GREATEST(:'lookback_hours'::int, 1) AS lookback_hours,
+    GREATEST(:'max_windows'::int, 1) AS max_windows
+),
+bounds AS (
+  SELECT
+    COALESCE(
+      cursor_start,
+      (
+        SELECT MIN(window_start)
+        FROM batch_window_runs
+        WHERE window_start >= latest_start - ((lookback_hours - 1) * interval '1 hour')
+          AND window_start <= latest_start
+      ),
+      latest_start - ((lookback_hours - 1) * interval '1 hour')
+    ) AS first_start,
+    latest_start,
+    max_windows
+  FROM params
+),
+candidate_windows AS (
+  SELECT generate_series(first_start, latest_start, interval '1 hour') AS window_start, max_windows
+  FROM bounds
+),
+latest_success AS (
+  SELECT DISTINCT window_start
+  FROM batch_window_runs
+  WHERE status = 'succeeded'
+),
+missing AS (
+  SELECT c.window_start
+  FROM candidate_windows c
+  LEFT JOIN latest_success s USING (window_start)
+  WHERE s.window_start IS NULL
+  ORDER BY c.window_start
+  LIMIT (SELECT max_windows FROM bounds)
+)
+SELECT
+  to_char(window_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') || ' ' ||
+  to_char((window_start + interval '1 hour') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+FROM missing;
+SQL
 }
 
 summarize_phase1() {
@@ -258,7 +355,7 @@ launch_spark_for_window() {
   if [ "$wait_rc" -eq 130 ] || [ "$STOP_REQUESTED" -eq 1 ]; then
     return 130
   fi
-  return 0
+  return "$wait_rc"
 }
 
 run_one_phase1() {
@@ -327,9 +424,11 @@ main() {
   initialize_consumer_groups
 
   local end_epoch current_window_start current_window_end last_spark_window
+  local latest_eventtime_start resolved_windows eventtime_cursor_start
   local phase1_runs_since_spark=0
   end_epoch=$(( $(date +%s) + DURATION_SEC ))
   last_spark_window="$(utc_prev_hour_start)"
+  eventtime_cursor_start="$EVENTTIME_CURSOR_START_UTC"
   log "[orchestrator] namespace=${NAMESPACE} duration_sec=${DURATION_SEC}"
   log "[orchestrator] initial spark baseline window=${last_spark_window}"
   log "[orchestrator] validate_group=${VALIDATE_GROUP}"
@@ -337,6 +436,11 @@ main() {
   log "[orchestrator] spark_window_mode=${SPARK_WINDOW_MODE}"
   log "[orchestrator] spark_every_phase1_runs=${SPARK_EVERY_PHASE1_RUNS}"
   log "[orchestrator] eventtime_lookback_hours=${EVENTTIME_LOOKBACK_HOURS}"
+  log "[orchestrator] eventtime_max_windows_per_check=${EVENTTIME_MAX_WINDOWS_PER_CHECK}"
+  log "[orchestrator] eventtime_cursor_mode=${EVENTTIME_CURSOR_MODE}"
+  if [ -n "$eventtime_cursor_start" ]; then
+    log "[orchestrator] eventtime_cursor_start=${eventtime_cursor_start}"
+  fi
 
   while [ "$(date +%s)" -lt "$end_epoch" ]; do
     if [ "$STOP_REQUESTED" -eq 1 ]; then
@@ -345,7 +449,20 @@ main() {
 
     if [ "$SPARK_WINDOW_MODE" = "eventtime" ]; then
       if [ "$phase1_runs_since_spark" -ge "$SPARK_EVERY_PHASE1_RUNS" ]; then
-        resolved_windows="$(resolve_eventtime_windows || true)"
+        latest_eventtime_start="$(resolve_eventtime_windows || true)"
+        if [ -n "$latest_eventtime_start" ]; then
+          log "[spark] latest sampled event-time hour ${latest_eventtime_start}"
+          if [ "$EVENTTIME_CURSOR_MODE" = "db" ]; then
+            resolved_windows="$(plan_eventtime_windows_from_db "$latest_eventtime_start" "$eventtime_cursor_start" || true)"
+            if [ -z "$resolved_windows" ]; then
+              log "[spark] DB cursor found no missing event-time windows through ${latest_eventtime_start}"
+            fi
+          else
+            resolved_windows="$(plan_eventtime_windows "$latest_eventtime_start" "$eventtime_cursor_start")"
+          fi
+        else
+          resolved_windows=""
+        fi
         if [ -n "$resolved_windows" ]; then
           while read -r current_window_start current_window_end; do
             [ -n "${current_window_start:-}" ] || continue
@@ -353,10 +470,12 @@ main() {
               break
             fi
             log "[spark] selected event-time window ${current_window_start} -> ${current_window_end}"
-            launch_spark_for_window "$current_window_start" "$current_window_end" || true
+            if launch_spark_for_window "$current_window_start" "$current_window_end"; then
+              eventtime_cursor_start="$current_window_end"
+              last_spark_window="$current_window_start"
+            fi
           done <<< "$resolved_windows"
           phase1_runs_since_spark=0
-          last_spark_window="$current_window_start"
         else
           log "[spark] no typed-topic event timestamps found; continuing Phase 1"
           if run_one_phase1; then
