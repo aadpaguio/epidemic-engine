@@ -103,6 +103,19 @@ CREATE TABLE IF NOT EXISTS feature_symptom_hourly (
 
 COMMENT ON TABLE feature_symptom_hourly IS 'Exploded symptom token counts per region and hour.';
 
+CREATE TABLE IF NOT EXISTS feature_vaccination_hourly (
+    bucket_start         TIMESTAMPTZ NOT NULL,
+    region               TEXT        NOT NULL,
+    vaccine_type         TEXT        NOT NULL,
+    dose_number          INTEGER     NOT NULL,
+    batch_id             TEXT        NOT NULL,
+    run_timestamp        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    vaccination_count    BIGINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (bucket_start, region, vaccine_type, dose_number, batch_id)
+);
+
+COMMENT ON TABLE feature_vaccination_hourly IS 'CO-2026-01: hourly vaccination counts by region, vaccine_type, and dose_number.';
+
 -- Hypertables (time column bucket_start)
 SELECT public.create_hypertable(
     'feature_region_hourly',
@@ -129,6 +142,11 @@ SELECT public.create_hypertable(
     'bucket_start',
     if_not_exists => TRUE
 );
+SELECT public.create_hypertable(
+    'feature_vaccination_hourly',
+    'bucket_start',
+    if_not_exists => TRUE
+);
 
 -- Indexes for Phase 3 query patterns (composite + diagnosis)
 CREATE INDEX IF NOT EXISTS idx_feature_region_hourly_region_bucket
@@ -139,6 +157,8 @@ CREATE INDEX IF NOT EXISTS idx_feature_hospital_hourly_hospital_bucket
     ON feature_hospital_hourly (hospital_id, bucket_start DESC);
 CREATE INDEX IF NOT EXISTS idx_feature_diagnosis_hourly_diagnosis
     ON feature_diagnosis_hourly (diagnosis_code, bucket_start DESC);
+CREATE INDEX IF NOT EXISTS idx_feature_vaccination_hourly_vaccine_bucket
+    ON feature_vaccination_hourly (vaccine_type, bucket_start DESC);
 
 -- ---------------------------------------------------------------------------
 -- Layer B: six derived analytics (views on latest batch per bucket for serving;
@@ -169,6 +189,12 @@ SELECT DISTINCT ON (bucket_start, clinic_id, diagnosis_code)
     *
 FROM feature_diagnosis_hourly
 ORDER BY bucket_start, clinic_id, diagnosis_code, run_timestamp DESC, batch_id DESC;
+
+CREATE OR REPLACE VIEW v_latest_feature_vaccination_hourly AS
+SELECT DISTINCT ON (bucket_start, region, vaccine_type, dose_number)
+    *
+FROM feature_vaccination_hourly
+ORDER BY bucket_start, region, vaccine_type, dose_number, run_timestamp DESC, batch_id DESC;
 
 -- 1) Regional disease severity trend: average severity and case volume per region per hour.
 CREATE OR REPLACE VIEW analytic_regional_disease_severity_trend AS
@@ -274,3 +300,18 @@ FROM v_latest_feature_clinic_hourly;
 
 COMMENT ON VIEW analytic_follow_up_rate_by_clinic IS
     'Rubric analytic 6: follow_up_rate = follow_up_true_count / NULLIF(visit_count, 0).';
+
+-- 7) CO-2026-01: Vaccination volume by vaccine type and dose (hourly).
+CREATE OR REPLACE VIEW analytic_vaccination_volume_by_type AS
+SELECT
+    bucket_start,
+    region,
+    vaccine_type,
+    dose_number,
+    vaccination_count,
+    batch_id,
+    run_timestamp
+FROM v_latest_feature_vaccination_hourly;
+
+COMMENT ON VIEW analytic_vaccination_volume_by_type IS
+    'CO-2026-01 change order: hourly vaccination counts keyed by vaccine_type and dose_number.';

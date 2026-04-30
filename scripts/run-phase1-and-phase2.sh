@@ -33,7 +33,7 @@ usage() {
 Options:
   --no-cleanup                 Skip all cleanup steps (still creates a new PipelineRun).
   --no-delete-phase1-pods      Do not delete Succeeded phase1 Task pods (may affect quota).
-  --truncate-db                TRUNCATE the five feature_*_hourly tables before Spark (destructive).
+  --truncate-db                TRUNCATE the feature_*_hourly tables before Spark (destructive).
   --skip-phase1                Only run Phase 2 (Spark); assumes topics already populated.
   --skip-phase2                Only run Phase 1.
   -h, --help                   Show this help.
@@ -101,7 +101,8 @@ TRUNCATE TABLE
   feature_clinic_hourly,
   feature_hospital_hourly,
   feature_diagnosis_hourly,
-  feature_symptom_hourly;
+  feature_symptom_hourly,
+  feature_vaccination_hourly;
 SQL
 }
 

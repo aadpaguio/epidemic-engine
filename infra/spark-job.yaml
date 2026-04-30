@@ -71,6 +71,8 @@ spec:
               value: "ds551-s26.team02.clinic_visits"
             - name: TOPIC_HOSPITAL
               value: "ds551-s26.team02.hospital_admissions"
+            - name: TOPIC_VACCINATION
+              value: "ds551-s26.team02.vaccination_records"
             - name: JDBC_URL
               value: "jdbc:postgresql://timescaledb-service:5432/epidemic"
             - name: JDBC_USER

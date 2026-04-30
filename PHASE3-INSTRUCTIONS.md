@@ -14,6 +14,7 @@
 Phase 3 is the capstone: an **end-to-end production Epidemic Engine** with advanced features of your choosing. You'll integrate Phase 1 (Tekton pipeline) and Phase 2 (batch analytics) into a complete system, add advanced features from a menu, and demonstrate operational readiness.
 
 **Full System Data Flow:**
+
 ```
 Event Generator (infra namespace)
   ↓
@@ -40,15 +41,17 @@ Production System (pods running, data flowing 1+ hours, features operational)
 
 ## Grading Breakdown
 
-| Category | Points | What You Do |
-|----------|--------|-------------|
-| **Required Baseline** | 400 | End-to-end integration + documentation + mandatory visualization |
-| **Category A: Alerting** | 100–300 | Threshold-based alerts (basic 200 pts, advanced 300 pts) |
-| **Category B: ML & Analytics** | 250–350 | Anomaly detection (250 pts) or outbreak prediction (350 pts) |
-| **Category C: Visualization (MANDATORY)** | 150 | Jupyter notebooks or dashboard with analytics |
-| **Category D: Testing & Reliability** | Up to 300 | Comprehensive test suite, data quality, monitoring |
-| **Stretch Goals** | Varies | Additional features beyond the menu; negotiate with staff |
-| **Total Available** | **1500+** | — |
+
+| Category                                  | Points    | What You Do                                                      |
+| ----------------------------------------- | --------- | ---------------------------------------------------------------- |
+| **Required Baseline**                     | 400       | End-to-end integration + documentation + mandatory visualization |
+| **Category A: Alerting**                  | 100–300   | Threshold-based alerts (basic 200 pts, advanced 300 pts)         |
+| **Category B: ML & Analytics**            | 250–350   | Anomaly detection (250 pts) or outbreak prediction (350 pts)     |
+| **Category C: Visualization (MANDATORY)** | 150       | Jupyter notebooks or dashboard with analytics                    |
+| **Category D: Testing & Reliability**     | Up to 300 | Comprehensive test suite, data quality, monitoring               |
+| **Stretch Goals**                         | Varies    | Additional features beyond the menu; negotiate with staff        |
+| **Total Available**                       | **1500+** | —                                                                |
+
 
 ### Points Strategy
 
@@ -79,7 +82,7 @@ Your system must run for at least **1 continuous hour** with all components work
 Create `docs/PHASE3-DATAFLOW.md` documenting:
 
 1. **End-to-end flow with specific component names**
-   ```
+  ```
    Event Generator (infra namespace)
      ↓
    Kafka topic: ds551-s26.team03.raw
@@ -97,55 +100,51 @@ Create `docs/PHASE3-DATAFLOW.md` documenting:
    PostgreSQL (postgres-service.team03:5432, database=analytics)
      ↓
    Phase 3 Features: Alerting Service (deployment), ML Model (batch job), Dashboard (Jupyter)
-   ```
-
+  ```
 2. **Data schema at each step**
-   - Raw topic: example JSON event from event generator
-   - Validated topic: added fields (add_timestamp, added_by field, etc.)
-   - Typed topics: structured schema with semantics
-   - Database: analytics result tables and their schemas
-
+  - Raw topic: example JSON event from event generator
+  - Validated topic: added fields (add_timestamp, added_by field, etc.)
+  - Typed topics: structured schema with semantics
+  - Database: analytics result tables and their schemas
 3. **Latency and throughput**
-   - Event generator rate: X events/sec
-   - Tekton pipeline processing time: ~Y seconds per batch
-   - Spark analytics frequency: every Z hours
-   - Total end-to-end latency: raw event → database result = ~W minutes
-
+  - Event generator rate: X events/sec
+  - Tekton pipeline processing time: ~Y seconds per batch
+  - Spark analytics frequency: every Z hours
+  - Total end-to-end latency: raw event → database result = ~W minutes
 4. **Failure modes and recovery**
-   - If Kafka pod crashes: recovery time, data loss risk
-   - If Spark job fails: retry behavior, backfill strategy
-   - If database goes down: detection, alert, recovery
+  - If Kafka pod crashes: recovery time, data loss risk
+  - If Spark job fails: retry behavior, backfill strategy
+  - If database goes down: detection, alert, recovery
 
 ### R1c: System Architecture Diagram (100 points)
 
 Create `docs/PHASE3-ARCHITECTURE.md` with:
 
 1. **Kubernetes architecture diagram** showing:
-   - Namespaces (infra, team03)
-   - Pods (Kafka, Tekton controller, Spark driver/executors, database, alerting, ML, dashboard)
-   - Services (internal DNS names)
-   - PersistentVolumes (data storage)
-   - Ingress/Routes (if exposing dashboard externally)
-
+  - Namespaces (infra, team03)
+  - Pods (Kafka, Tekton controller, Spark driver/executors, database, alerting, ML, dashboard)
+  - Services (internal DNS names)
+  - PersistentVolumes (data storage)
+  - Ingress/Routes (if exposing dashboard externally)
 2. **Technology stack**
-   - Container orchestration: OpenShift Kubernetes
-   - Event streaming: Apache Kafka
-   - Workflow: Tekton Pipelines
-   - Batch analytics: Apache Spark
-   - Database: [PostgreSQL/MongoDB/etc]
-   - Phase 3 feature tech (alerting: Kafka Streams? Flink? Email service?; ML: scikit-learn? TensorFlow?; Viz: Jupyter? Streamlit? nginx?)
-
+  - Container orchestration: OpenShift Kubernetes
+  - Event streaming: Apache Kafka
+  - Workflow: Tekton Pipelines
+  - Batch analytics: Apache Spark
+  - Database: [PostgreSQL/MongoDB/etc]
+  - Phase 3 feature tech (alerting: Kafka Streams? Flink? Email service?; ML: scikit-learn? TensorFlow?; Viz: Jupyter? Streamlit? nginx?)
 3. **Decisions and tradeoffs**
-   - Why Spark vs. Kafka Streams for Phase 2? (batch analytics better than streaming?)
-   - Why PostgreSQL vs. MongoDB? (structured relational better than flexible document?)
-   - Why alerting via [X] vs. [Y]?
-   - What would you change with more time?
+  - Why Spark vs. Kafka Streams for Phase 2? (batch analytics better than streaming?)
+  - Why PostgreSQL vs. MongoDB? (structured relational better than flexible document?)
+  - Why alerting via [X] vs. [Y]?
+  - What would you change with more time?
 
 ### R1d: Mandatory Visualization (150 points)
 
 You **must** implement at least one of:
 
 **Option A: Jupyter Notebooks** (recommended; 150 pts)
+
 - 2–3 notebooks analyzing Phase 2 analytics results
 - Plots: time series of event counts, severity distributions, location heatmaps, anomalies
 - Queries: read directly from your database, group/aggregate, visualize
@@ -154,7 +153,7 @@ You **must** implement at least one of:
   ```python
   import pandas as pd
   import matplotlib.pyplot as plt
-  
+
   df = pd.read_sql("SELECT COUNT(*) as cnt FROM analytics_results GROUP BY hour", db_connection)
   df.plot(kind='line')
   plt.title("Events per Hour")
@@ -162,6 +161,7 @@ You **must** implement at least one of:
   ```
 
 **Option B: Web Dashboard** (if approved; 150 pts)
+
 - Lightweight web app (Flask/FastAPI + Bootstrap, or embedded Streamlit/Grafana)
 - Displays real-time or near-real-time analytics results
 - At least 3 distinct visualizations
@@ -169,10 +169,12 @@ You **must** implement at least one of:
 - Example: Flask app with matplotlib/Plotly, served via k8s Ingress
 
 **Option C: Combination** (recommended; 150 pts)
+
 - Jupyter notebooks + REST API endpoint serving analytics (FastAPI)
 - Notebooks for ad-hoc analysis; API for real-time dashboards
 
 **Deliverables:**
+
 - `notebooks/` directory with `.ipynb` files (Jupyter) or `app/` directory with Flask/FastAPI code
 - `docs/visualization-guide.md` — how to run, what to expect
 - Screenshot or video of visualization working with real data from your database
@@ -190,6 +192,7 @@ Choose from one or more categories below. You can mix and match; you don't need 
 Implement alerts that monitor your analytics results or event stream in real-time and notify on anomalies/thresholds.
 
 **Basic Alerting (200 points):**
+
 - Monitor **≥2 metrics** from your database or Kafka topics (e.g., events/hour > 100, avg_severity > 7)
 - Threshold-based triggers (hardcoded or configurable)
 - **≥1 notification method:**
@@ -201,6 +204,7 @@ Implement alerts that monitor your analytics results or event stream in real-tim
 - Per-team alerts (alerts specific to your data, not cross-team)
 
 **Example Implementation:**
+
 ```python
 # Python alerting service (runs in a pod)
 import psycopg2, smtplib, time
@@ -216,6 +220,7 @@ while True:
 ```
 
 **Advanced Alerting (300 points):**
+
 - Everything in basic, PLUS:
   - **Severity levels** (critical, warning, info) with escalation
   - **Suppression/deduplication** (don't spam same alert)
@@ -223,6 +228,7 @@ while True:
   - **Configurable thresholds** (read from ConfigMap, no code changes needed to update)
 
 **Example:**
+
 ```yaml
 ---
 # ConfigMap: alerting-config
@@ -255,6 +261,7 @@ data:
 Implement machine learning or advanced analytics on your event stream.
 
 **Anomaly Detection (250 points):**
+
 - Detect unusual patterns in your event stream
 - Algorithms: Z-score, IQR (Interquartile Range), or Isolation Forest on key metrics (event count, severity, location distribution)
 - Input: Phase 2 analytics results or raw event stream
@@ -263,6 +270,7 @@ Implement machine learning or advanced analytics on your event stream.
 - Batch job: runs periodically, updates database with anomaly scores
 
 **Implementation:**
+
 ```python
 # Anomaly detection in Spark
 from pyspark.ml.feature import StandardScaler
@@ -278,6 +286,7 @@ df_anomalies.filter("anomaly == 1").write.jdbc(...)  # Write anomalies back to D
 ```
 
 **Outbreak Prediction (350 points):**
+
 - Supervised ML: predict outbreak severity (binary: outbreak or not; or multi-class: severity level)
 - Feature engineering: use Phase 2 analytics to create features (e.g., event rate trend, severity distribution, location clusters)
 - Training data: use historical events; label synthetic "outbreak" scenarios
@@ -286,6 +295,7 @@ df_anomalies.filter("anomaly == 1").write.jdbc(...)  # Write anomalies back to D
 - Example: Given event metrics from past 7 days, predict "outbreak likely" with 85% confidence
 
 **Implementation:**
+
 ```python
 # Train model
 from sklearn.ensemble import RandomForestClassifier
@@ -309,6 +319,7 @@ prediction = model.predict(latest_analytics[['event_count_trend', ...]])
 See **R1d: Mandatory Visualization** above for details. Choose Jupyter notebooks, web dashboard, or combination.
 
 Additional options:
+
 - **Grafana dashboard** (if you deploy Grafana pod): query database, build time-series visualizations
 - **Kibana/ELK** (if logs are indexed): visualize event flow, errors, latency
 
@@ -317,6 +328,7 @@ Additional options:
 ### Feature Category D: Testing & Reliability (up to 300 points)
 
 **Comprehensive Test Suite (150–200 points):**
+
 - Unit tests for analytics functions (test each Spark aggregation)
 - Integration tests (Kafka → Spark → database happy path)
 - End-to-end tests (Phase 1 full pipeline → Phase 2 job → verify database)
@@ -325,6 +337,7 @@ Additional options:
 - CI/CD: GitHub Actions or OpenShift Tekton to run tests on every commit
 
 **Example Unit Test (150 pts for solid coverage):**
+
 ```python
 # test_analytics.py
 import pytest
@@ -338,6 +351,7 @@ def test_compute_hourly_counts():
 ```
 
 **Data Quality & Monitoring (100–150 points):**
+
 - Schema validation on incoming Kafka events (detect missing fields, wrong types)
 - Data profiling: compute statistics on each field (nulls, distributions, outliers)
 - Anomaly detection on data: flag if >20% of events are missing a field
@@ -345,6 +359,7 @@ def test_compute_hourly_counts():
 - Alerts if data quality drops below threshold
 
 **Example Data Quality Check:**
+
 ```python
 # In Spark job
 def validate_schema(df):
@@ -460,23 +475,26 @@ Create a scorecard mapping what you implemented to our grading categories:
 Record a **6-minute maximum video** demonstrating your system.
 
 **Required sections:**
+
 1. **System overview** (1–2 min) — show Kubernetes pods running, describe what each does
 2. **Live data flow** (2–3 min) — show events flowing through the system
-   - Event generator producing to raw topic
-   - Tekton pipeline processing
-   - Analytics results in database
-   - At least one Phase 3 feature in action (alert firing, anomaly highlighted, ML prediction, visualization dashboard)
+  - Event generator producing to raw topic
+  - Tekton pipeline processing
+  - Analytics results in database
+  - At least one Phase 3 feature in action (alert firing, anomaly highlighted, ML prediction, visualization dashboard)
 3. **Feature deep-dive** (1–2 min) — explain one feature well:
-   - "Our anomaly detection flagged this 2-hour spike in symptom reports; here's why it's important"
-   - "Our outbreak prediction model says 87% confidence of high severity this week; trained on this historical data"
+  - "Our anomaly detection flagged this 2-hour spike in symptom reports; here's why it's important"
+  - "Our outbreak prediction model says 87% confidence of high severity this week; trained on this historical data"
 
 **Format:**
+
 - Screen recording (not required to show your face)
 - Sound is clear
 - Natural pacing (no rushing)
 - Show real system output (logs, database queries, dashboards)
 
 **Submission:**
+
 - Upload to Gradescope: Phase 3 Video Verification assignment
 - OR link to YouTube/Panopto in your GitHub README
 
@@ -488,6 +506,7 @@ Record a **6-minute maximum video** demonstrating your system.
 **Duration:** 15-20 minutes per team
 
 Course staff will ask:
+
 1. **Architecture**: "Why did you choose PostgreSQL vs. MongoDB? What are the tradeoffs?"
 2. **Design decisions**: "Walk us through one design choice and the alternative you rejected."
 3. **Failure recovery**: "Your Spark job crashed last week. How did you detect it and recover?"
@@ -495,6 +514,7 @@ Course staff will ask:
 5. **Pivot/learning**: "If you had to restart in 2 weeks, what would you do differently?"
 
 **Rubric:**
+
 - Understands full system architecture
 - Can defend design choices
 - Shows operational maturity (handled failures, monitored system)
@@ -519,22 +539,26 @@ Course staff will ask:
 ## Common Issues & Tips
 
 **Q: My Kafka topics have no new events after 1 hour**
+
 - Check if Event Generator pod is still running: `kubectl -n infra get pods | grep event-generator`
 - Check if your Tekton pipeline is consuming and producing: `kubectl logs <tekton-pod>`
 - Verify topics exist: `kafka-console-consumer.sh --bootstrap-server ... --topic ds551-s26.teamXX.raw`
 
 **Q: Spark job runs but writes nothing to database**
+
 - Check Spark driver logs: `kubectl logs <spark-driver>`
 - Verify database service is accessible: `kubectl run -it debug --image=postgres -- psql -h postgres-service -U postgres`
 - Check Spark code for exceptions; add logging before the write
 
 **Q: Alerting not firing even when thresholds are crossed**
+
 - Verify alert service pod is running: `kubectl get pod -l app=alerting`
 - Check alert service logs: `kubectl logs -l app=alerting`
 - Manually query the database to confirm alert condition is true
 - Test alert manually: `python alert-service.py --test`
 
 **Q: Our architecture is too ambitious; can we simplify?**
+
 - Yes! Focus on doing a few things well. Basic alerting + visualization + solid testing = 700+ pts and very defensible
 - Talk to course staff if you want to pivot; we'd rather see a smaller, well-executed system than half-finished features
 
@@ -554,6 +578,7 @@ Course staff will ask:
 ## Questions?
 
 Ask on Piazza (#phase3 tag) or attend lab sessions:
+
 - **Lab Tue, May 1** — Phase 3 final prep and Q&A
 - **Lab Thu, May 3** — Last-minute troubleshooting
 

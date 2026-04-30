@@ -4,19 +4,22 @@ This folder implements the DS-551 Phase 1 flow described in `INSTRUCTIONS.md`: v
 
 ## Pipeline design
 
-1. **`validate-events`** — Reads `ds551-s26.team02.raw`. Checks required base fields (`event_id`, `event_type`, `patient_id`, `timestamp`, `region`) and ISO-8601 timestamps. Valid records go to `ds551-s26.team02.validated`. Invalid records are logged; when a validate DLQ topic is configured, failures are wrapped and sent there. **Event types are not filtered in this stage** (that happens next).
+1. **`validate-events`** — Reads `ds551-s26.team02.raw`. Assigns `event_id` when missing, then validates required base fields **`event_type`**, **`timestamp`**, **`region`**, and ISO-8601 timestamps. If **`schema_version`** is present it must be **`2`** (CO-2026-01); **`vaccination_record`** additionally requires `schema_version`, `record_id`, `patient_id`, `vaccine_type`, `dose_number`, and **`administered_at`**. Valid records go to `ds551-s26.team02.validated`. Invalid records are logged; when a validate DLQ topic is configured, failures are wrapped and sent there. **Typed routing happens in the next task.**
 
 2. **`route-and-enrich`** — Runs after validate (`runAfter: [validate]`). Reads `validated`. Adds `team_id`, `processing_timestamp` (UTC), and `event_source: "ds551-event-generator"`. Routes by `event_type`:
 
-   | `event_type`        | Topic                                      |
-   | ------------------- | ------------------------------------------ |
-   | `symptom_report`    | `ds551-s26.team02.symptom_reports`         |
-   | `clinic_visit`      | `ds551-s26.team02.clinic_visits`           |
-   | `hospital_admission`| `ds551-s26.team02.hospital_admissions`     |
+   | `event_type`          | Topic                                      |
+   | --------------------- | ------------------------------------------ |
+   | `symptom_report`      | `ds551-s26.team02.symptom_reports`         |
+   | `clinic_visit`        | `ds551-s26.team02.clinic_visits`           |
+   | `hospital_admission`  | `ds551-s26.team02.hospital_admissions`     |
+   | `vaccination_record`  | `ds551-s26.team02.vaccination_records`     |
 
-   Other types (e.g. `emergency_incident`, `general_health_report`, `vaccination`) are **silently dropped** (no produce to typed topics; optional routing DLQ remains for parse/produce errors only).
+   Other types (e.g. `general_health_report`) are **silently dropped** (no produce to typed topics; optional routing DLQ remains for parse/produce errors only).
 
 Both tasks use **`kafka-python-ng`** in `python:3.11-slim`, consume with **`auto_offset_reset='latest'`** for new consumer groups, and stop after **`batch-size`** messages (default 100) per run. Offsets are committed manually after producer flush, and each PipelineTask has retries configured in `tekton/pipeline.yaml`.
+
+**CO-2026-01** details (routing choice, schema rules, failure codes): [`docs/change-order-vaccination.md`](../docs/change-order-vaccination.md).
 
 For unattended hourly operation, avoid overlapping runs with the same consumer-group IDs.
 

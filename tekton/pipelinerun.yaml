@@ -20,6 +20,8 @@ spec:
       value: ds551-s26.team02.clinic_visits
     - name: hospital-topic
       value: ds551-s26.team02.hospital_admissions
+    - name: vaccination-topic
+      value: ds551-s26.team02.vaccination_records
     - name: routing-dlq-topic
       value: ds551-s26.team02.routing_dlq
     - name: team-id

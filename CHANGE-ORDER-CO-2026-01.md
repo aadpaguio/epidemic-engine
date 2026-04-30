@@ -78,12 +78,14 @@ updated or added, one doc section updated. The rest of your system is untouched.
 
 ## Grading (Phase 3 — 100 pts)
 
-| Component | Points |
-|-----------|--------|
-| Validator updated | 25 |
-| Routing and storage | 25 |
-| Downstream integration (uses vaccine_type or dose_number) | 35 |
-| Documentation updated | 15 |
+
+| Component                                                 | Points |
+| --------------------------------------------------------- | ------ |
+| Validator updated                                         | 25     |
+| Routing and storage                                       | 25     |
+| Downstream integration (uses vaccine_type or dose_number) | 35     |
+| Documentation updated                                     | 15     |
+
 
 ---
 

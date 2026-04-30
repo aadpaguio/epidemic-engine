@@ -130,6 +130,16 @@ spec:
                 return True
             return False
 
+        def check_iso8601_string(val: object) -> bool:
+            if not isinstance(val, str):
+                return False
+            try:
+                norm = val.replace("Z", "+00:00") if val.endswith("Z") else val
+                datetime.fromisoformat(norm)
+                return True
+            except Exception:
+                return False
+
         def validate_obj(obj) -> tuple[bool, str | None, str | None]:
             """Returns (ok, reason_code, event_id_str)."""
             if not isinstance(obj, dict):
@@ -143,13 +153,46 @@ spec:
                     return False, f"MISSING_FIELD:{field}", eid_str
 
             ts = obj["timestamp"]
-            if not isinstance(ts, str):
+            if not check_iso8601_string(ts):
                 return False, "BAD_TIMESTAMP", eid_str
-            try:
-                norm = ts.replace("Z", "+00:00") if ts.endswith("Z") else ts
-                datetime.fromisoformat(norm)
-            except Exception:
-                return False, "BAD_TIMESTAMP", eid_str
+
+            # CO-2026-01: events may include schema_version; legacy payloads omit it.
+            # If present, only schema_version 2 is accepted.
+            if "schema_version" in obj and obj["schema_version"] not in (None, ""):
+                try:
+                    sv_int = int(obj["schema_version"])
+                except (TypeError, ValueError):
+                    return False, "BAD_SCHEMA_VERSION", eid_str
+                if sv_int != 2:
+                    return False, "BAD_SCHEMA_VERSION", eid_str
+
+            et = obj.get("event_type")
+            if et == "vaccination_record":
+                vac_required = (
+                    "schema_version",
+                    "record_id",
+                    "patient_id",
+                    "vaccine_type",
+                    "dose_number",
+                    "administered_at",
+                )
+                for field in vac_required:
+                    if field not in obj or obj[field] in (None, ""):
+                        return False, f"MISSING_FIELD:{field}", eid_str
+                try:
+                    if int(obj["schema_version"]) != 2:
+                        return False, "BAD_SCHEMA_VERSION", eid_str
+                except (TypeError, ValueError):
+                    return False, "BAD_SCHEMA_VERSION", eid_str
+                dn = obj["dose_number"]
+                if isinstance(dn, bool):
+                    return False, "BAD_FIELD:dose_number", eid_str
+                try:
+                    int(dn)
+                except (TypeError, ValueError):
+                    return False, "BAD_FIELD:dose_number", eid_str
+                if not check_iso8601_string(obj["administered_at"]):
+                    return False, "BAD_TIMESTAMP", eid_str
 
             return True, None, eid_str
 
@@ -373,6 +416,8 @@ spec:
       type: string
     - name: hospital-topic
       type: string
+    - name: vaccination-topic
+      type: string
     - name: routing-dlq-topic
       type: string
       default: ""
@@ -408,6 +453,8 @@ spec:
           value: $(params.clinic-topic)
         - name: HOSPITAL_TOPIC
           value: $(params.hospital-topic)
+        - name: VACCINATION_TOPIC
+          value: $(params.vaccination-topic)
         - name: ROUTING_DLQ_TOPIC
           value: $(params.routing-dlq-topic)
         - name: TEAM_ID
@@ -442,6 +489,7 @@ spec:
         SYMPTOM_TOPIC = os.environ["SYMPTOM_TOPIC"]
         CLINIC_TOPIC = os.environ["CLINIC_TOPIC"]
         HOSPITAL_TOPIC = os.environ["HOSPITAL_TOPIC"]
+        VACCINATION_TOPIC = os.environ["VACCINATION_TOPIC"]
         DLQ_TOPIC = os.environ.get("ROUTING_DLQ_TOPIC", "").strip()
         TEAM_ID = os.environ["TEAM_ID"]
         BATCH_SIZE = max(0, int(os.environ.get("BATCH_SIZE", "100")))
@@ -450,6 +498,7 @@ spec:
             "symptom_report": SYMPTOM_TOPIC,
             "clinic_visit": CLINIC_TOPIC,
             "hospital_admission": HOSPITAL_TOPIC,
+            "vaccination_record": VACCINATION_TOPIC,
         }
 
         def pipeline_log(

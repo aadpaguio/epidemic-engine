@@ -1,8 +1,8 @@
 """
 Phase 2 Spark batch ETL: read typed Kafka topics, build hourly fact tables (Layer A).
 
-Preliminaries: parsed, hour-bucketed event DataFrames per stream. Two facts implemented
-here; three more are outlined in comment blocks below.
+Reads symptom, clinic, hospital, and vaccination typed topics; writes Layer A fact tables
+including CO-2026-01 `feature_vaccination_hourly`.
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ from pyspark.sql.types import (
 DEFAULT_SYMPTOM_TOPIC = "ds551-s26.team02.symptom_reports"
 DEFAULT_CLINIC_TOPIC = "ds551-s26.team02.clinic_visits"
 DEFAULT_HOSPITAL_TOPIC = "ds551-s26.team02.hospital_admissions"
+DEFAULT_VACCINATION_TOPIC = "ds551-s26.team02.vaccination_records"
 
 
 def _env(name: str, default: str | None = None) -> str:
@@ -201,6 +202,11 @@ PAYLOAD_SCHEMA = StructType(
         StructField("oxygen_level", DoubleType(), True),
         StructField("expected_los_days", DoubleType(), True),
         StructField("available_beds", IntegerType(), True),
+        StructField("schema_version", IntegerType(), True),
+        StructField("record_id", StringType(), True),
+        StructField("vaccine_type", StringType(), True),
+        StructField("dose_number", IntegerType(), True),
+        StructField("administered_at", StringType(), True),
         StructField("team_id", StringType(), True),
         StructField("processing_timestamp", StringType(), True),
         StructField("event_source", StringType(), True),
@@ -277,8 +283,9 @@ def read_typed_kafka(
     topic_symptom: str,
     topic_clinic: str,
     topic_hospital: str,
+    topic_vaccination: str,
 ) -> DataFrame:
-    topics = f"{topic_symptom},{topic_clinic},{topic_hospital}"
+    topics = f"{topic_symptom},{topic_clinic},{topic_hospital},{topic_vaccination}"
     return (
         spark.read.format("kafka")
         .option("kafka.bootstrap.servers", bootstrap)
@@ -333,6 +340,11 @@ def parse_kafka_to_payload(kafka_df: DataFrame) -> DataFrame:
         F.col("data.oxygen_level").cast("double").alias("oxygen_level"),
         F.col("data.expected_los_days").cast("double").alias("expected_los_days"),
         F.col("data.available_beds").cast("double").alias("available_beds"),
+        F.col("data.schema_version").cast("int").alias("schema_version"),
+        F.col("data.record_id").alias("record_id"),
+        F.col("data.vaccine_type").alias("vaccine_type"),
+        F.col("data.dose_number").cast("int").alias("dose_number"),
+        F.col("data.administered_at").alias("administered_at_raw"),
     )
 
 
@@ -341,6 +353,7 @@ def with_event_time_and_bucket(
     topic_symptom: str,
     topic_clinic: str,
     topic_hospital: str,
+    topic_vaccination: str,
 ) -> DataFrame:
     ts = F.to_timestamp(F.col("ts_raw"))
     ts_trim = F.trim(F.col("ts_raw").cast("string"))
@@ -382,6 +395,43 @@ def with_event_time_and_bucket(
             & F.col("hospital_id").isNull(),
             F.lit("MISSING_FIELD:hospital_id"),
         )
+        .when(
+            (F.col("topic") == F.lit(topic_vaccination)) & F.col("parse_ok") & F.col("region").isNull(),
+            F.lit("MISSING_FIELD:region"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_vaccination)) & F.col("parse_ok") & F.col("record_id").isNull(),
+            F.lit("MISSING_FIELD:record_id"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_vaccination)) & F.col("parse_ok") & F.col("vaccine_type").isNull(),
+            F.lit("MISSING_FIELD:vaccine_type"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_vaccination)) & F.col("parse_ok") & F.col("dose_number").isNull(),
+            F.lit("MISSING_FIELD:dose_number"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_vaccination))
+            & F.col("parse_ok")
+            & (F.col("schema_version").isNull() | (F.col("schema_version").cast("int") != F.lit(2))),
+            F.lit("BAD_SCHEMA_VERSION"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_vaccination))
+            & F.col("parse_ok")
+            & (
+                F.trim(F.col("administered_at_raw").cast("string")).isNull()
+                | (F.length(F.trim(F.col("administered_at_raw").cast("string"))) == 0)
+            ),
+            F.lit("MISSING_FIELD:administered_at"),
+        )
+        .when(
+            (F.col("topic") == F.lit(topic_vaccination))
+            & F.col("parse_ok")
+            & F.to_timestamp(F.trim(F.col("administered_at_raw").cast("string"))).isNull(),
+            F.lit("BAD_TIMESTAMP"),
+        )
         .otherwise(F.lit("ACCEPT"))
     )
 
@@ -402,7 +452,7 @@ def log_kafka_read_slices(
     kafka_df: DataFrame,
     run_id: str,
     batch_id: str,
-    expected_topics: tuple[str, str, str],
+    expected_topics: tuple[str, ...],
 ) -> tuple[dict[str, dict[str, Any]], int]:
     """
     Per-topic partition offset slices for [ANALYTICS] kafka_read lines.
@@ -475,7 +525,7 @@ def log_kafka_read_slices(
 
 def collect_parse_stats(
     bucketed: DataFrame,
-    expected_topics: tuple[str, str, str],
+    expected_topics: tuple[str, ...],
 ) -> dict[str, Any]:
     """Aggregation for skip_reason counts and event-time watermarks (bucketed must be cached)."""
     total = bucketed.count()
@@ -577,6 +627,52 @@ def preliminary_hospital_admissions(
             "expected_los_days",
             "available_beds"
         )
+    )
+
+
+def preliminary_vaccination_records(
+    parsed_bucketed: DataFrame, topic_vaccination: str
+) -> DataFrame:
+    """Hour-bucketed vaccination_record rows (CO-2026-01)."""
+    return (
+        parsed_bucketed.filter(
+            (F.col("topic") == F.lit(topic_vaccination)) & (F.col("skip_reason") == F.lit("ACCEPT"))
+        )
+        .select(
+            F.lit("vaccination_record").alias("event_type"),
+            "bucket_start",
+            "region",
+            "event_ts",
+            "record_id",
+            "patient_id",
+            "vaccine_type",
+            "dose_number",
+            F.to_timestamp(F.trim(F.col("administered_at_raw").cast("string"))).alias(
+                "administered_at"
+            ),
+        )
+    )
+
+
+def build_feature_vaccination_hourly(
+    df_vaccination: DataFrame,
+    batch_id: str,
+    run_ts: datetime,
+) -> DataFrame:
+    """Natural key: (bucket_start, region, vaccine_type, dose_number). CO-2026-01 Layer A."""
+    agg = df_vaccination.groupBy("bucket_start", "region", "vaccine_type", "dose_number").agg(
+        F.count(F.lit(1)).alias("vaccination_count"),
+    )
+    return agg.withColumn("batch_id", F.lit(batch_id)).withColumn(
+        "run_timestamp", F.lit(run_ts).cast(TimestampType())
+    ).select(
+        "bucket_start",
+        "region",
+        "vaccine_type",
+        "dose_number",
+        "vaccination_count",
+        "batch_id",
+        "run_timestamp",
     )
 
 
@@ -897,6 +993,9 @@ def main() -> int:
     topic_hospital = (
         _optional_env("TOPIC_HOSPITAL", DEFAULT_HOSPITAL_TOPIC) or DEFAULT_HOSPITAL_TOPIC
     )
+    topic_vaccination = (
+        _optional_env("TOPIC_VACCINATION", DEFAULT_VACCINATION_TOPIC) or DEFAULT_VACCINATION_TOPIC
+    )
 
     skip_jdbc = _env_truthy("SKIP_JDBC_WRITE")
     jdbc_url = jdbc_user = jdbc_password = ""
@@ -927,10 +1026,15 @@ def main() -> int:
     parsed_bucketed: DataFrame | None = None
     try:
         spark = build_spark()
-        expected_topics = (topic_symptom, topic_clinic, topic_hospital)
+        expected_topics = (topic_symptom, topic_clinic, topic_hospital, topic_vaccination)
 
         kafka_df = read_typed_kafka(
-            spark, kafka_bootstrap, topic_symptom, topic_clinic, topic_hospital
+            spark,
+            kafka_bootstrap,
+            topic_symptom,
+            topic_clinic,
+            topic_hospital,
+            topic_vaccination,
         )
         _, total_consumed = log_kafka_read_slices(
             kafka_df, run_id, batch_id, expected_topics
@@ -938,7 +1042,7 @@ def main() -> int:
 
         parsed = parse_kafka_to_payload(kafka_df)
         parsed_bucketed = with_event_time_and_bucket(
-            parsed, topic_symptom, topic_clinic, topic_hospital
+            parsed, topic_symptom, topic_clinic, topic_hospital, topic_vaccination
         )
         parsed_bucketed = filter_window(parsed_bucketed, window_start, window_end).cache()
         parse_stats = collect_parse_stats(parsed_bucketed, expected_topics)
@@ -971,23 +1075,10 @@ def main() -> int:
         df_symptoms = preliminary_symptoms(parsed_bucketed, topic_symptom)
         df_clinic = preliminary_clinic_visits(parsed_bucketed, topic_clinic)
         df_hospital = preliminary_hospital_admissions(parsed_bucketed, topic_hospital)
+        df_vaccination = preliminary_vaccination_records(parsed_bucketed, topic_vaccination)
 
         exploded_symptoms = df_symptoms.withColumn("symptom_token", F.explode("symptoms")).filter(
             F.col("symptom_token").isNotNull() & (F.length(F.col("symptom_token")) > 0))
-
-        # ------------------------------------------------------------------
-        # feature_diagnosis_hourly  (TODO)
-        #   Source: df_clinic (drop rows with null diagnosis_code if needed).
-        #   groupBy(bucket_start, clinic_id, diagnosis_code) → diagnosis_visit_count;
-        #   optional temperature_sum/count; beds gauge columns; batch metadata; JDBC.
-        # ------------------------------------------------------------------
-
-        # ------------------------------------------------------------------
-        # feature_symptom_hourly  (TODO)
-        #   Source: parsed_bucketed on symptom topic only; explode("symptoms") to
-        #   symptom_token (filter null/empty). groupBy(bucket_start, region,
-        #   symptom_token) → symptom_token_count; batch metadata; JDBC.
-        # ------------------------------------------------------------------
 
         region_hourly = build_feature_region_hourly(
             df_symptoms, df_clinic, df_hospital, batch_id, run_ts
@@ -998,6 +1089,7 @@ def main() -> int:
             df_clinic.filter(F.col("diagnosis_code").isNotNull()), batch_id, run_ts
         )
         symptom_hourly = build_feature_symptom_hourly(exploded_symptoms, batch_id, run_ts)
+        vaccination_hourly = build_feature_vaccination_hourly(df_vaccination, batch_id, run_ts)
 
         if skip_jdbc:
             rows_region = log_db_write_skipped(
@@ -1014,6 +1106,13 @@ def main() -> int:
             )
             rows_symptom = log_db_write_skipped(
                 symptom_hourly, "feature_symptom_hourly", "feature_symptom_hourly", run_id, batch_id
+            )
+            rows_vaccination = log_db_write_skipped(
+                vaccination_hourly,
+                "feature_vaccination_hourly",
+                "feature_vaccination_hourly",
+                run_id,
+                batch_id,
             )
             rows_written_total = 0
         else:
@@ -1078,10 +1177,32 @@ def main() -> int:
                 run_id,
                 batch_id,
             )
-            rows_written_total = rows_region + rows_clinic + rows_hospital + rows_diagnosis + rows_symptom
+            rows_vaccination = write_jdbc_analytic(
+                vaccination_hourly,
+                "feature_vaccination_hourly",
+                "feature_vaccination_hourly",
+                jdbc_url,
+                jdbc_user,
+                jdbc_password,
+                run_id,
+                batch_id,
+            )
+            rows_written_total = (
+                rows_region
+                + rows_clinic
+                + rows_hospital
+                + rows_diagnosis
+                + rows_symptom
+                + rows_vaccination
+            )
 
         rows_computed_total = (
-            rows_region + rows_clinic + rows_hospital + rows_diagnosis + rows_symptom
+            rows_region
+            + rows_clinic
+            + rows_hospital
+            + rows_diagnosis
+            + rows_symptom
+            + rows_vaccination
         )
 
         completed_at = datetime.now(timezone.utc)
