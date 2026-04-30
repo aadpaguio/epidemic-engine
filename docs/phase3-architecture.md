@@ -29,7 +29,8 @@ team02 namespace
   │   ├─ ds551-s26.team02.validated
   │   ├─ ds551-s26.team02.symptom_reports
   │   ├─ ds551-s26.team02.clinic_visits
-  │   └─ ds551-s26.team02.hospital_admissions
+  │   ├─ ds551-s26.team02.hospital_admissions
+  │   └─ ds551-s26.team02.vaccination_records
   │
   ├─ Tekton Pipeline
   │   ├─ Task: validate-events

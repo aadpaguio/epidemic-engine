@@ -19,6 +19,8 @@ spec:
       type: string
     - name: hospital-topic
       type: string
+    - name: vaccination-topic
+      type: string
     - name: routing-dlq-topic
       type: string
       default: ""
@@ -75,6 +77,8 @@ spec:
           value: $(params.clinic-topic)
         - name: hospital-topic
           value: $(params.hospital-topic)
+        - name: vaccination-topic
+          value: $(params.vaccination-topic)
         - name: routing-dlq-topic
           value: $(params.routing-dlq-topic)
         - name: team-id
