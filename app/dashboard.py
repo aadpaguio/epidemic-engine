@@ -8,6 +8,8 @@ from components import (
     bar_capacity_pressure,
     bar_detector_agreement,
     bar_detector_scores,
+    bar_top_diagnoses,
+    bar_top_vaccination_regions,
     line_detector_agreement,
     line_detector_risk,
     line_diagnosis_temperature,
@@ -332,6 +334,13 @@ def _latest_vaccination_total(vaccination: pd.DataFrame) -> int:
     return int(latest["vaccination_count"].fillna(0).sum())
 
 
+def _display_table(df: pd.DataFrame, *, columns: list[str], column_labels: dict[str, str] | None = None):
+    view = df.loc[:, columns].copy()
+    if column_labels:
+        view = view.rename(columns=column_labels)
+    st.dataframe(view, use_container_width=True, hide_index=True)
+
+
 with st.sidebar:
     st.header("Controls")
     page = st.radio(
@@ -413,6 +422,11 @@ if page == "Situation Room":
     regions_high_risk = 0 if watchlist.empty else int((watchlist["signal_status"] == "High Risk").sum())
     latest_hospitals = _latest_bucket_rows(hospital_pressure)
     max_pressure = None if latest_hospitals.empty else latest_hospitals["capacity_pressure_index"].dropna().max()
+    top_region_name = "None"
+    top_region_signal = "No active signal"
+    if not watchlist.empty:
+        top_region_name = str(watchlist.iloc[0]["region"])
+        top_region_signal = f"{int(watchlist.iloc[0]['high_risk_method_count'])} methods flagged"
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric(
@@ -425,8 +439,9 @@ if page == "Situation Room":
     )
     col3.metric("Regions in High Risk", f"{regions_high_risk}")
     col4.metric(
-        "Max Hospital Pressure",
-        "N/A" if max_pressure is None or pd.isna(max_pressure) else f"{float(max_pressure):.2f}",
+        "Top Region",
+        top_region_name,
+        delta=top_region_signal,
     )
 
     st.subheader("Current Briefing")
@@ -445,23 +460,51 @@ if page == "Situation Room":
         if watchlist.empty:
             st.info("No detector rows are available for the latest run.")
         else:
-            st.dataframe(
-                watchlist[
-                    [
+            watch_view = watchlist.copy()
+            watch_view["max_risk_score"] = watch_view["max_risk_score"].round(2)
+            watch_view["avg_severity"] = pd.to_numeric(
+                watch_view["avg_severity"], errors="coerce"
+            ).round(2)
+            _display_table(
+                watch_view.head(5),
+                columns=[
+                    "region",
+                    "signal_status",
+                    "high_risk_method_count",
+                    "methods_reporting",
+                    "max_risk_score",
+                    "top_method",
+                    "total_case_events",
+                    "avg_severity",
+                ],
+                column_labels={
+                    "region": "Region",
+                    "signal_status": "Status",
+                    "high_risk_method_count": "Methods Flagging",
+                    "methods_reporting": "Methods Reporting",
+                    "max_risk_score": "Max Risk",
+                    "top_method": "Top Method",
+                    "total_case_events": "Cases",
+                    "avg_severity": "Avg Severity",
+                },
+            )
+            with st.expander("Show full watchlist details"):
+                _display_table(
+                    watch_view,
+                    columns=[
                         "region",
                         "signal_status",
                         "high_risk_method_count",
                         "methods_reporting",
+                        "avg_risk_score",
                         "max_risk_score",
                         "top_method",
                         "high_risk_models",
                         "total_case_events",
                         "avg_severity",
-                    ]
-                ],
-                use_container_width=True,
-                hide_index=True,
-            )
+                        "narrative",
+                    ],
+                )
 
 elif page == "Regional Pulse":
     st.subheader("Regional Pulse")
@@ -514,32 +557,64 @@ elif page == "Regional Pulse":
     if selected_row is not None:
         st.info(selected_row["narrative"])
 
-    line_regional_severity(regional_filtered)
-    area_total_cases(regional_filtered)
+    left, right = st.columns(2)
+    with left:
+        line_regional_severity(regional_filtered)
+    with right:
+        area_total_cases(regional_filtered)
 
     st.markdown("#### Outbreak Signal Trend")
-    line_detector_risk(region_predictions, title=f"Risk Score by Method: {region}")
-    line_detector_agreement(region_consensus, title=f"Detector Agreement Over Time: {region}")
+    left, right = st.columns(2)
+    with left:
+        line_detector_risk(region_predictions, title=f"Risk Score by Method: {region}")
+    with right:
+        line_detector_agreement(region_consensus, title=f"Detector Agreement Over Time: {region}")
 
     st.markdown("#### Vaccination Context")
-    line_vaccination_volume(latest_region_vacc)
+    left, right = st.columns([3, 2])
+    with left:
+        line_vaccination_volume(latest_region_vacc)
+    with right:
+        latest_region_vacc_rows = _latest_bucket_rows(latest_region_vacc).sort_values(
+            "vaccination_count", ascending=False, na_position="last"
+        )
+        if latest_region_vacc_rows.empty:
+            st.info("No vaccination rows for this region.")
+        else:
+            _display_table(
+                latest_region_vacc_rows.head(8),
+                columns=["vaccine_type", "dose_number", "vaccination_count", "batch_id"],
+                column_labels={
+                    "vaccine_type": "Vaccine",
+                    "dose_number": "Dose",
+                    "vaccination_count": "Count",
+                    "batch_id": "Batch",
+                },
+            )
 
     if not region_predictions.empty:
-        st.dataframe(
-            region_predictions.sort_values(
+        with st.expander("Show detector rows for this region"):
+            region_view = region_predictions.sort_values(
                 ["bucket_start", "risk_score"], ascending=[False, False]
-            )[
-                [
+            ).copy()
+            region_view["risk_score"] = region_view["risk_score"].round(3)
+            _display_table(
+                region_view.head(20),
+                columns=[
                     "bucket_start",
                     "model_version",
                     "risk_score",
                     "predicted_label",
                     "threshold",
-                ]
-            ],
-            use_container_width=True,
-            hide_index=True,
-        )
+                ],
+                column_labels={
+                    "bucket_start": "Bucket",
+                    "model_version": "Method",
+                    "risk_score": "Risk",
+                    "predicted_label": "Label",
+                    "threshold": "Threshold",
+                },
+            )
 
 elif page == "Detector Signals":
     st.subheader("Detector Signals")
@@ -569,8 +644,11 @@ elif page == "Detector Signals":
                 f"with {int(top_consensus['high_risk_method_count'])} methods flagging high risk."
             )
 
-        bar_detector_scores(filtered_predictions, title="Latest Detector Scores by Region")
-        bar_detector_agreement(detector_consensus, title="Latest Detector Agreement by Region")
+        left, right = st.columns(2)
+        with left:
+            bar_detector_scores(filtered_predictions, title="Latest Detector Scores by Region")
+        with right:
+            bar_detector_agreement(detector_consensus, title="Latest Detector Agreement by Region")
         if detector == "ALL":
             trend_df = (
                 _coerce_bucket_start(filtered_predictions)
@@ -579,24 +657,30 @@ elif page == "Detector Signals":
             )
             line_detector_risk(trend_df, title="Average Detector Risk Score Trend")
         else:
-            st.markdown("#### Latest Detector Rows")
+            line_detector_risk(filtered_predictions, title=f"Risk Score Trend: {detector}")
 
-        st.dataframe(
-            filtered_predictions.sort_values(
-                ["bucket_start", "region", "risk_score"], ascending=[False, True, False]
-            )[
-                [
-                    "bucket_start",
-                    "region",
-                    "model_version",
-                    "risk_score",
-                    "predicted_label",
-                    "threshold",
-                    "run_id",
-                ]
+        latest_signal_rows = filtered_predictions.sort_values(
+            ["bucket_start", "risk_score"], ascending=[False, False]
+        ).copy()
+        latest_signal_rows["risk_score"] = latest_signal_rows["risk_score"].round(3)
+        _display_table(
+            latest_signal_rows.head(15),
+            columns=[
+                "bucket_start",
+                "region",
+                "model_version",
+                "risk_score",
+                "predicted_label",
+                "threshold",
             ],
-            use_container_width=True,
-            hide_index=True,
+            column_labels={
+                "bucket_start": "Bucket",
+                "region": "Region",
+                "model_version": "Method",
+                "risk_score": "Risk",
+                "predicted_label": "Label",
+                "threshold": "Threshold",
+            },
         )
 
 elif page == "Operations Desk":
@@ -623,36 +707,50 @@ elif page == "Operations Desk":
         summary += "this is where surge planning should focus first."
         st.info(summary)
 
-    bar_capacity_pressure(hospital_pressure)
-    st.dataframe(
-        latest_hospital_rows[
-            [
+    left, right = st.columns([3, 2])
+    with left:
+        bar_capacity_pressure(hospital_pressure)
+    with right:
+        hospital_view = latest_hospital_rows.copy()
+        hospital_view["capacity_pressure_index"] = hospital_view["capacity_pressure_index"].round(3)
+        _display_table(
+            hospital_view.head(10),
+            columns=[
                 "hospital_id",
                 "admission_count",
                 "available_beds_last",
                 "capacity_pressure_index",
-                "batch_id",
-            ]
-        ].head(12),
-        use_container_width=True,
-        hide_index=True,
-    )
+            ],
+            column_labels={
+                "hospital_id": "Hospital",
+                "admission_count": "Admissions",
+                "available_beds_last": "Beds Last",
+                "capacity_pressure_index": "Pressure",
+            },
+        )
 
     st.markdown("#### Clinic Follow-up Load")
-    line_follow_up_rates(follow_up)
-    st.dataframe(
-        latest_follow_rows[
-            [
+    left, right = st.columns([3, 2])
+    with left:
+        line_follow_up_rates(follow_up)
+    with right:
+        follow_view = latest_follow_rows.copy()
+        follow_view["follow_up_rate"] = follow_view["follow_up_rate"].round(3)
+        _display_table(
+            follow_view.head(10),
+            columns=[
                 "clinic_id",
                 "visit_count",
                 "follow_up_true_count",
                 "follow_up_rate",
-                "batch_id",
-            ]
-        ].head(12),
-        use_container_width=True,
-        hide_index=True,
-    )
+            ],
+            column_labels={
+                "clinic_id": "Clinic",
+                "visit_count": "Visits",
+                "follow_up_true_count": "Follow-ups",
+                "follow_up_rate": "Rate",
+            },
+        )
 
 elif page == "Clinical Context":
     st.subheader("Clinical Context")
@@ -672,28 +770,46 @@ elif page == "Clinical Context":
             "this looks like the strongest clinical signal in the latest bucket."
         )
 
-    line_diagnosis_temperature(diagnosis)
-    st.dataframe(
-        latest_diag_rows[
-            [
-                "clinic_id",
-                "diagnosis_code",
-                "diagnosis_visit_count",
-                "avg_temperature_f",
-                "batch_id",
-            ]
-        ].head(15),
-        use_container_width=True,
-        hide_index=True,
+    left, right = st.columns([3, 2])
+    with left:
+        line_diagnosis_temperature(diagnosis)
+    with right:
+        bar_top_diagnoses(diagnosis)
+
+    diag_view = latest_diag_rows.copy()
+    diag_view["avg_temperature_f"] = diag_view["avg_temperature_f"].round(1)
+    _display_table(
+        diag_view.head(10),
+        columns=[
+            "clinic_id",
+            "diagnosis_code",
+            "diagnosis_visit_count",
+            "avg_temperature_f",
+        ],
+        column_labels={
+            "clinic_id": "Clinic",
+            "diagnosis_code": "Diagnosis",
+            "diagnosis_visit_count": "Visits",
+            "avg_temperature_f": "Avg Temp F",
+        },
     )
 
     st.markdown("#### Vaccination Signals")
-    line_vaccination_volume(vaccination)
-    st.metric("Vaccinations Logged (latest hour)", f"{_latest_vaccination_total(vaccination):,}")
-    st.dataframe(
-        latest_vaccination_rows[
-            ["region", "vaccine_type", "dose_number", "vaccination_count", "batch_id"]
-        ].head(15),
-        use_container_width=True,
-        hide_index=True,
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        line_vaccination_volume(vaccination)
+    with col2:
+        st.metric("Vaccinations Logged (latest hour)", f"{_latest_vaccination_total(vaccination):,}")
+        bar_top_vaccination_regions(vaccination)
+
+    vacc_view = latest_vaccination_rows.copy()
+    _display_table(
+        vacc_view.head(10),
+        columns=["region", "vaccine_type", "dose_number", "vaccination_count"],
+        column_labels={
+            "region": "Region",
+            "vaccine_type": "Vaccine",
+            "dose_number": "Dose",
+            "vaccination_count": "Count",
+        },
     )

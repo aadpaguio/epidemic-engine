@@ -3,6 +3,16 @@ import plotly.express as px
 import streamlit as st
 
 
+PALETTE = [
+    "#205781",
+    "#4F959D",
+    "#98D2C0",
+    "#F6F8D5",
+    "#F4A261",
+    "#E76F51",
+]
+
+
 def _normalize_bucket_start(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     if "bucket_start" in out.columns:
@@ -23,6 +33,27 @@ def _apply_time_axis(fig, df: pd.DataFrame):
         tickmode="array",
         tickvals=tickvals,
         ticktext=ticktext,
+    )
+
+
+def _finalize_fig(fig, *, height: int = 320, horizontal_legend: bool = True):
+    legend = dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=1,
+    ) if horizontal_legend else dict(
+        orientation="v",
+        yanchor="top",
+        y=1,
+        xanchor="left",
+        x=1.01,
+    )
+    fig.update_layout(
+        height=height,
+        margin=dict(l=20, r=20, t=60, b=20),
+        legend=legend,
     )
 
 
@@ -69,8 +100,10 @@ def line_event_volume(df: pd.DataFrame):
         y="volume",
         color="event_type",
         title="Event Volume by Type (Layer B)",
+        color_discrete_sequence=PALETTE,
     )
     _apply_time_axis(fig, chart_df)
+    _finalize_fig(fig, height=360)
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -85,8 +118,10 @@ def line_regional_severity(df: pd.DataFrame):
         y="avg_severity",
         color="region",
         title="Regional Disease Severity Trend",
+        color_discrete_sequence=PALETTE,
     )
     _apply_time_axis(fig, df)
+    _finalize_fig(fig, height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -100,12 +135,14 @@ def area_total_cases(df: pd.DataFrame):
         y="total_case_events",
         color="region",
         title="Total Case Events by Region",
+        color_discrete_sequence=PALETTE,
     )
     _apply_time_axis(fig, df)
+    _finalize_fig(fig, height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 
-def bar_capacity_pressure(df: pd.DataFrame):
+def bar_capacity_pressure(df: pd.DataFrame, top_n: int = 10):
     if df.empty:
         st.info("No hospital capacity data available.")
         return
@@ -116,56 +153,64 @@ def bar_capacity_pressure(df: pd.DataFrame):
         .tail(1)
         .sort_values("capacity_pressure_index", ascending=False)
     )
+    chart_df = latest.head(top_n).copy()
     fig = px.bar(
-        latest,
+        chart_df,
         x="hospital_id",
         y="capacity_pressure_index",
-        title="Latest Capacity Pressure by Hospital",
+        title=f"Top {min(top_n, len(chart_df))} Hospitals by Capacity Pressure",
+        color="capacity_pressure_index",
+        color_continuous_scale=["#98D2C0", "#F4A261", "#E76F51"],
     )
+    _finalize_fig(fig, height=320, horizontal_legend=False)
     st.plotly_chart(fig, use_container_width=True)
-    st.dataframe(
-        latest[
-            [
-                "bucket_start",
-                "hospital_id",
-                "admission_count",
-                "available_beds_last",
-                "capacity_pressure_index",
-            ]
-        ],
-        use_container_width=True,
-    )
 
 
-def line_follow_up_rates(df: pd.DataFrame):
+def line_follow_up_rates(df: pd.DataFrame, top_n: int = 8):
     if df.empty:
         st.info("No follow-up data available.")
         return
     df = _normalize_bucket_start(df)
+    latest = df.sort_values("bucket_start").groupby("clinic_id", as_index=False).tail(1)
+    top_clinics = latest.sort_values(
+        ["follow_up_rate", "visit_count"], ascending=[False, False]
+    )["clinic_id"].head(top_n)
+    plot_df = df.loc[df["clinic_id"].isin(top_clinics)].copy()
     fig = px.line(
-        df,
+        plot_df,
         x="bucket_start",
         y="follow_up_rate",
         color="clinic_id",
-        title="Follow-up Rate by Clinic",
+        title=f"Follow-up Rate Trend: Top {min(top_n, len(top_clinics))} Clinics",
+        color_discrete_sequence=PALETTE,
     )
-    _apply_time_axis(fig, df)
+    _apply_time_axis(fig, plot_df)
+    _finalize_fig(fig, height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 
-def line_diagnosis_temperature(df: pd.DataFrame):
+def line_diagnosis_temperature(df: pd.DataFrame, top_n: int = 8):
     if df.empty:
         st.info("No diagnosis temperature data available.")
         return
     df = _normalize_bucket_start(df)
+    top_diagnoses = (
+        df.groupby("diagnosis_code", as_index=False)["diagnosis_visit_count"]
+        .sum()
+        .sort_values("diagnosis_visit_count", ascending=False)["diagnosis_code"]
+        .head(top_n)
+    )
+    plot_df = df.loc[df["diagnosis_code"].isin(top_diagnoses)].copy()
     fig = px.line(
-        df,
+        plot_df,
         x="bucket_start",
         y="avg_temperature_f",
         color="diagnosis_code",
-        title="Average Temperature by Diagnosis",
+        title=f"Average Temperature: Top {min(top_n, len(top_diagnoses))} Diagnosis Codes",
+        color_discrete_sequence=PALETTE,
     )
-    _apply_time_axis(fig, df)
+    _apply_time_axis(fig, plot_df)
+    _finalize_fig(fig, height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -185,8 +230,10 @@ def line_vaccination_volume(df: pd.DataFrame):
         y="vaccination_count",
         color="vaccine_type",
         title="Vaccination Volume by Type",
+        color_discrete_sequence=PALETTE,
     )
     _apply_time_axis(fig, plot_df)
+    _finalize_fig(fig, height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -202,9 +249,11 @@ def line_detector_risk(df: pd.DataFrame, title: str = "Risk Score by Detection M
         color="model_version",
         markers=True,
         title=title,
+        color_discrete_sequence=PALETTE,
     )
     fig.update_yaxes(range=[0, 1], title="Risk Score")
     _apply_time_axis(fig, plot_df)
+    _finalize_fig(fig, height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -224,8 +273,10 @@ def bar_detector_scores(df: pd.DataFrame, title: str = "Latest Detector Scores b
         color="model_version",
         barmode="group",
         title=title,
+        color_discrete_sequence=PALETTE,
     )
     fig.update_yaxes(range=[0, 1], title="Risk Score")
+    _finalize_fig(fig, height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -246,8 +297,14 @@ def bar_detector_agreement(df: pd.DataFrame, title: str = "Detector Agreement by
         text="high_risk_method_count",
         title=title,
         category_orders={"consensus_label": ["High Risk", "Elevated", "Normal"]},
+        color_discrete_map={
+            "High Risk": "#E76F51",
+            "Elevated": "#F4A261",
+            "Normal": "#4F959D",
+        },
     )
     fig.update_yaxes(title="Methods Flagging High Risk")
+    _finalize_fig(fig, height=320, horizontal_legend=False)
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -263,7 +320,56 @@ def line_detector_agreement(df: pd.DataFrame, title: str = "Detector Agreement O
         color="region",
         markers=True,
         title=title,
+        color_discrete_sequence=PALETTE,
     )
     fig.update_yaxes(title="Methods Flagging High Risk")
     _apply_time_axis(fig, plot_df)
+    _finalize_fig(fig, height=300)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def bar_top_diagnoses(df: pd.DataFrame, top_n: int = 10):
+    if df.empty:
+        st.info("No diagnosis rows are available.")
+        return
+    plot_df = (
+        df.groupby("diagnosis_code", as_index=False)
+        .agg(
+            diagnosis_visit_count=("diagnosis_visit_count", "sum"),
+            avg_temperature_f=("avg_temperature_f", "mean"),
+        )
+        .sort_values(["diagnosis_visit_count", "avg_temperature_f"], ascending=[False, False])
+        .head(top_n)
+    )
+    fig = px.bar(
+        plot_df,
+        x="diagnosis_code",
+        y="diagnosis_visit_count",
+        color="avg_temperature_f",
+        title=f"Top {min(top_n, len(plot_df))} Diagnosis Codes by Visit Count",
+        color_continuous_scale=["#98D2C0", "#F4A261", "#E76F51"],
+    )
+    _finalize_fig(fig, height=320, horizontal_legend=False)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def bar_top_vaccination_regions(df: pd.DataFrame, top_n: int = 8):
+    if df.empty:
+        st.info("No vaccination rows are available.")
+        return
+    plot_df = (
+        df.groupby("region", as_index=False)["vaccination_count"]
+        .sum()
+        .sort_values("vaccination_count", ascending=False)
+        .head(top_n)
+    )
+    fig = px.bar(
+        plot_df,
+        x="region",
+        y="vaccination_count",
+        title=f"Top {min(top_n, len(plot_df))} Regions by Vaccination Volume",
+        color="vaccination_count",
+        color_continuous_scale=["#98D2C0", "#4F959D", "#205781"],
+    )
+    _finalize_fig(fig, height=280, horizontal_legend=False)
     st.plotly_chart(fig, use_container_width=True)
