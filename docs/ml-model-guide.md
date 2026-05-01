@@ -90,6 +90,31 @@ The training script:
 4. trains a Random Forest model
 5. saves the model and feature column list to `ml/model.pkl`
 
+## Moving average detector
+
+Alongside the Random Forest, `ml/predict.py` runs a **k-bucket moving-average** detector implemented in `ml/detectors.py`.
+
+- For each region, hourly rows are ordered by `bucket_start`.
+- The baseline for the current bucket is the **mean of the previous k** `total_case_events` values (the current bucket is excluded so a spike is not averaged into its own baseline).
+- A z-score compares the current count to the standard deviation of those previous k counts (with a small floor when the std is zero).
+- `high_risk` when `z >= MOVING_AVG_Z_THRESHOLD` (default `2.0`) **and** `avg_severity >= MOVING_AVG_SEVERITY_THRESHOLD` (default `2.3`).
+- `risk_score` is `min(z / 4, 1.0)` for dashboard-friendly scaling.
+
+Rows are written to `ml_outbreak_predictions` with `model_version` set by `MOVING_AVG_MODEL_VERSION` (default `moving_avg_k6_v1`). The forest continues to use `MODEL_VERSION` (default `v1`).
+
+**Lookback:** The scoring query reads `ML_LOOKBACK_HOURS` (default `72`) of history so the first buckets in the output window still have a trailing baseline. Only the last `ML_OUTPUT_WINDOW_HOURS` (default `24`) are written for both methods.
+
+Relevant environment variables:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `ML_LOOKBACK_HOURS` | 72 | SQL window for feature rows |
+| `ML_OUTPUT_WINDOW_HOURS` | 24 | Buckets to insert per run |
+| `MOVING_AVG_K` | 6 | Prior-window length |
+| `MOVING_AVG_Z_THRESHOLD` | 2.0 | Stored in `threshold` for MA rows |
+| `MOVING_AVG_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
+| `MOVING_AVG_MODEL_VERSION` | moving_avg_k6_v1 | `model_version` column |
+
 ## Current Training Data Status
 
 The latest retraining used synthetic pipeline-generated data from TimescaleDB.
@@ -129,7 +154,7 @@ The scoring script is:
 ml/predict.py
 ```
 
-It loads `ml/model.pkl`, scores recent rows from `vw_region_hourly_ml_features_windowed`, converts model probability into `high_risk` or `normal` using a threshold of `0.5`, and inserts the results into `ml_outbreak_predictions`.
+It loads `ml/model.pkl`, scores recent rows from `vw_region_hourly_ml_features_windowed`, converts model probability into `high_risk` or `normal` using a threshold of `0.5` (for the Random Forest), runs the moving-average detector on the same rows, and inserts **two rows per bucket per region** (one per method) into `ml_outbreak_predictions`, sharing the same `run_id`.
 
 ## Latest Prediction Run
 
