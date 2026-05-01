@@ -90,19 +90,20 @@ The training script:
 4. trains a Random Forest model
 5. saves the model and feature column list to `ml/model.pkl`
 
-## Moving average detector
+## Statistical time-series detectors
 
-Alongside the Random Forest, `ml/predict.py` runs a **k-bucket moving-average** detector implemented in `ml/detectors.py`.
+Alongside the Random Forest, `ml/predict.py` runs three statistical detectors implemented in `ml/detectors.py`: a k-bucket moving average, EWMA, and a simple one-dimensional Kalman filter.
 
 - For each region, hourly rows are ordered by `bucket_start`.
-- The baseline for the current bucket is the **mean of the previous k** `total_case_events` values (the current bucket is excluded so a spike is not averaged into its own baseline).
-- A z-score compares the current count to the standard deviation of those previous k counts (with a small floor when the std is zero).
-- `high_risk` when `z >= MOVING_AVG_Z_THRESHOLD` (default `2.0`) **and** `avg_severity >= MOVING_AVG_SEVERITY_THRESHOLD` (default `2.3`).
-- `risk_score` is `min(z / 4, 1.0)` for dashboard-friendly scaling.
+- The moving-average baseline is the **mean of the previous k** `total_case_events` values (the current bucket is excluded so a spike is not averaged into its own baseline).
+- EWMA uses an exponentially weighted baseline from previous bucket counts, so it reacts faster than a fixed k-window while still smoothing noise.
+- The Kalman detector treats `log1p(total_case_events)` as a noisy observation of hidden outbreak intensity and flags buckets with a large positive innovation compared with the prior filtered state.
+- Each detector also requires `avg_severity` to clear its severity threshold before labeling a bucket `high_risk`.
+- Detector `risk_score` values are scaled to `[0, 1]` for dashboard-friendly display.
 
-Rows are written to `ml_outbreak_predictions` with `model_version` set by `MOVING_AVG_MODEL_VERSION` (default `moving_avg_k6_v1`). The forest continues to use `MODEL_VERSION` (default `v1`).
+Rows are written to `ml_outbreak_predictions` with method-specific `model_version` values: `MODEL_VERSION` for RandomForest, `MOVING_AVG_MODEL_VERSION`, `EWMA_MODEL_VERSION`, and `KALMAN_MODEL_VERSION`.
 
-**Lookback:** The scoring query reads `ML_LOOKBACK_HOURS` (default `72`) of history so the first buckets in the output window still have a trailing baseline. Only the last `ML_OUTPUT_WINDOW_HOURS` (default `24`) are written for both methods.
+**Lookback:** The scoring query reads `ML_LOOKBACK_HOURS` (default `72`) of history so the first buckets in the output window still have a trailing baseline/state. Only the last `ML_OUTPUT_WINDOW_HOURS` (default `24`) are written for each method.
 
 Relevant environment variables:
 
@@ -114,6 +115,15 @@ Relevant environment variables:
 | `MOVING_AVG_Z_THRESHOLD` | 2.0 | Stored in `threshold` for MA rows |
 | `MOVING_AVG_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
 | `MOVING_AVG_MODEL_VERSION` | moving_avg_k6_v1 | `model_version` column |
+| `EWMA_ALPHA` | 0.35 | Exponential smoothing weight |
+| `EWMA_Z_THRESHOLD` | 2.0 | Stored in `threshold` for EWMA rows |
+| `EWMA_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
+| `EWMA_MODEL_VERSION` | ewma_v1 | `model_version` column |
+| `KALMAN_PROCESS_VAR` | 0.05 | How quickly hidden state can move |
+| `KALMAN_OBSERVATION_VAR` | 0.2 | Observation noise for `log1p(total_case_events)` |
+| `KALMAN_Z_THRESHOLD` | 2.0 | Stored in `threshold` for Kalman rows |
+| `KALMAN_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
+| `KALMAN_MODEL_VERSION` | kalman_v1 | `model_version` column |
 
 For a quick local check that does not connect to TimescaleDB or insert rows, run:
 
@@ -160,11 +170,11 @@ The scoring script is:
 ml/predict.py
 ```
 
-It loads `ml/model.pkl`, scores recent rows from `vw_region_hourly_ml_features_windowed`, converts model probability into `high_risk` or `normal` using a threshold of `0.5` (for the Random Forest), runs the moving-average detector on the same rows, and inserts **two rows per bucket per region** (one per method) into `ml_outbreak_predictions`, sharing the same `run_id`.
+It loads `ml/model.pkl`, scores recent rows from `vw_region_hourly_ml_features_windowed`, converts model probability into `high_risk` or `normal` using a threshold of `0.5` (for the Random Forest), runs the statistical detectors on the same rows, and inserts **four rows per bucket per region** (one per method) into `ml_outbreak_predictions`, sharing the same `run_id`.
 
-## Current Moving Average Smoke Test
+## Current Real-DB Detector Check
 
-We also ran the moving-average detector against the current TimescaleDB feature view using the live port-forwarded database connection. The test read 30 regional hourly feature rows from `vw_region_hourly_ml_features_windowed`, covering `2026-04-29 12:00:00+00` through `2026-04-30 18:00:00+00`.
+We also ran the moving-average detector against the current TimescaleDB feature view using the live port-forwarded database connection. The read-only check used 30 regional hourly feature rows from `vw_region_hourly_ml_features_windowed`, covering `2026-04-29 12:00:00+00` through `2026-04-30 18:00:00+00`.
 
 The real data had `total_case_events` ranging from 156 to 2367 per region-hour bucket. The moving-average detector flagged the latest high-volume `2026-04-30 18:00:00+00` bucket across all five regions, where counts rose from recent baselines around 476-499 to roughly 2139-2367. This looked like the intended behavior: the detector responded to sudden recent spikes while ignoring smaller elevated-but-less-spiky buckets.
 

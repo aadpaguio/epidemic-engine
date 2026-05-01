@@ -1,7 +1,7 @@
 """Local smoke test for outbreak scoring.
 
 This does not connect to TimescaleDB or write predictions. It loads the saved
-RandomForest bundle and runs the moving-average detector over synthetic hourly
+RandomForest bundle and runs the statistical detectors over synthetic hourly
 regional buckets so the scoring path can be checked quickly from a laptop.
 
 Run from the repo root:
@@ -15,7 +15,7 @@ import argparse
 import joblib
 import pandas as pd
 
-from ml.detectors import moving_average_detector
+from ml.detectors import ewma_detector, kalman_detector, moving_average_detector
 
 
 def build_sample_features() -> pd.DataFrame:
@@ -59,6 +59,9 @@ def main() -> None:
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--moving-avg-k", type=int, default=6)
     parser.add_argument("--moving-avg-z-threshold", type=float, default=2.0)
+    parser.add_argument("--ewma-alpha", type=float, default=0.35)
+    parser.add_argument("--ewma-z-threshold", type=float, default=2.0)
+    parser.add_argument("--kalman-z-threshold", type=float, default=2.0)
     parser.add_argument("--severity-threshold", type=float, default=2.3)
     args = parser.parse_args()
 
@@ -71,6 +74,17 @@ def main() -> None:
         df,
         k=args.moving_avg_k,
         z_threshold=args.moving_avg_z_threshold,
+        severity_threshold=args.severity_threshold,
+    )
+    df = ewma_detector(
+        df,
+        alpha=args.ewma_alpha,
+        z_threshold=args.ewma_z_threshold,
+        severity_threshold=args.severity_threshold,
+    )
+    df = kalman_detector(
+        df,
+        z_threshold=args.kalman_z_threshold,
         severity_threshold=args.severity_threshold,
     )
 
@@ -96,12 +110,20 @@ def main() -> None:
         "ma_count_z",
         "ma_risk_score",
         "ma_predicted_label",
+        "ewma_count_z",
+        "ewma_risk_score",
+        "ewma_predicted_label",
+        "kf_innovation_z",
+        "kf_risk_score",
+        "kf_predicted_label",
     ]
 
     df_display = df.sort_values(["bucket_start", "region"]).copy()
     high_risk = df_display[
         (df_display["rf_predicted_label"] == "high_risk")
         | (df_display["ma_predicted_label"] == "high_risk")
+        | (df_display["ewma_predicted_label"] == "high_risk")
+        | (df_display["kf_predicted_label"] == "high_risk")
     ]
 
     print("\nLocal outbreak scoring smoke test")
@@ -110,7 +132,7 @@ def main() -> None:
     print(
         "high_risk_rows="
         f"{len(high_risk)} "
-        "(flagged by RandomForest or moving-average detector)"
+        "(flagged by RandomForest, moving-average, EWMA, or Kalman)"
     )
     print(df_display[display_cols].to_string(index=False))
 

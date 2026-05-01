@@ -4,7 +4,7 @@ import joblib
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-from ml.detectors import moving_average_detector
+from ml.detectors import ewma_detector, kalman_detector, moving_average_detector
 
 DB_URL = os.getenv("DATABASE_URL")
 if not DB_URL:
@@ -22,6 +22,18 @@ MOVING_AVG_MIN_PERIODS = int(os.getenv("MOVING_AVG_MIN_PERIODS", "2"))
 MOVING_AVG_Z_THRESHOLD = float(os.getenv("MOVING_AVG_Z_THRESHOLD", "2.0"))
 MOVING_AVG_SEVERITY_THRESHOLD = float(os.getenv("MOVING_AVG_SEVERITY_THRESHOLD", "2.3"))
 MOVING_AVG_MODEL_VERSION = os.getenv("MOVING_AVG_MODEL_VERSION", "moving_avg_k6_v1")
+
+EWMA_ALPHA = float(os.getenv("EWMA_ALPHA", "0.35"))
+EWMA_MIN_PERIODS = int(os.getenv("EWMA_MIN_PERIODS", "2"))
+EWMA_Z_THRESHOLD = float(os.getenv("EWMA_Z_THRESHOLD", "2.0"))
+EWMA_SEVERITY_THRESHOLD = float(os.getenv("EWMA_SEVERITY_THRESHOLD", "2.3"))
+EWMA_MODEL_VERSION = os.getenv("EWMA_MODEL_VERSION", "ewma_v1")
+
+KALMAN_PROCESS_VAR = float(os.getenv("KALMAN_PROCESS_VAR", "0.05"))
+KALMAN_OBSERVATION_VAR = float(os.getenv("KALMAN_OBSERVATION_VAR", "0.2"))
+KALMAN_Z_THRESHOLD = float(os.getenv("KALMAN_Z_THRESHOLD", "2.0"))
+KALMAN_SEVERITY_THRESHOLD = float(os.getenv("KALMAN_SEVERITY_THRESHOLD", "2.3"))
+KALMAN_MODEL_VERSION = os.getenv("KALMAN_MODEL_VERSION", "kalman_v1")
 
 QUERY = f"""
 SELECT
@@ -64,14 +76,28 @@ def main() -> None:
 
     df["bucket_start"] = pd.to_datetime(df["bucket_start"], utc=True)
     cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=OUTPUT_WINDOW_HOURS)
-    df_ma = moving_average_detector(
+    df_scored = moving_average_detector(
         df,
         k=MOVING_AVG_K,
         min_periods=MOVING_AVG_MIN_PERIODS,
         z_threshold=MOVING_AVG_Z_THRESHOLD,
         severity_threshold=MOVING_AVG_SEVERITY_THRESHOLD,
     )
-    df_out = df_ma[df_ma["bucket_start"] >= cutoff].copy()
+    df_scored = ewma_detector(
+        df_scored,
+        alpha=EWMA_ALPHA,
+        min_periods=EWMA_MIN_PERIODS,
+        z_threshold=EWMA_Z_THRESHOLD,
+        severity_threshold=EWMA_SEVERITY_THRESHOLD,
+    )
+    df_scored = kalman_detector(
+        df_scored,
+        process_var=KALMAN_PROCESS_VAR,
+        observation_var=KALMAN_OBSERVATION_VAR,
+        z_threshold=KALMAN_Z_THRESHOLD,
+        severity_threshold=KALMAN_SEVERITY_THRESHOLD,
+    )
+    df_out = df_scored[df_scored["bucket_start"] >= cutoff].copy()
     if df_out.empty:
         print("No rows in output window.")
         return
@@ -110,6 +136,28 @@ def main() -> None:
                 "run_id": run_id,
             }
         )
+        rows.append(
+            {
+                "bucket_start": row["bucket_start"],
+                "region": row["region"],
+                "model_version": EWMA_MODEL_VERSION,
+                "risk_score": float(row["ewma_risk_score"]),
+                "predicted_label": str(row["ewma_predicted_label"]),
+                "threshold": EWMA_Z_THRESHOLD,
+                "run_id": run_id,
+            }
+        )
+        rows.append(
+            {
+                "bucket_start": row["bucket_start"],
+                "region": row["region"],
+                "model_version": KALMAN_MODEL_VERSION,
+                "risk_score": float(row["kf_risk_score"]),
+                "predicted_label": str(row["kf_predicted_label"]),
+                "threshold": KALMAN_Z_THRESHOLD,
+                "run_id": run_id,
+            }
+        )
 
     with engine.begin() as conn:
         for r in rows:
@@ -117,7 +165,7 @@ def main() -> None:
 
     print(
         f"Wrote {len(rows)} prediction row(s) for {len(df_out)} bucket-region row(s) "
-        f"(random_forest + moving_avg) run_id={run_id}"
+        f"(random_forest + moving_avg + ewma + kalman) run_id={run_id}"
     )
 
 
