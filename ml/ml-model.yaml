@@ -10,6 +10,7 @@ spec:
       containers:
         - name: outbreak-predict
           image: image-registry.openshift-image-registry.svc:5000/ds551-2026-spring-a5f0d1/outbreak-predict:latest
+          command: ["python", "-m", "ml.predict"]
           env:
           - name: DATABASE_URL
             valueFrom:
@@ -22,3 +23,37 @@ spec:
             value: "v1"
           - name: THRESHOLD
             value: "0.5"
+          - name: ML_LOOKBACK_HOURS
+            value: "72"
+          - name: ML_OUTPUT_WINDOW_HOURS
+            value: "24"
+          - name: MOVING_AVG_K
+            value: "6"
+          - name: MOVING_AVG_MIN_PERIODS
+            value: "2"
+          - name: MOVING_AVG_Z_THRESHOLD
+            value: "2.0"
+          - name: MOVING_AVG_SEVERITY_THRESHOLD
+            value: "2.3"
+          - name: MOVING_AVG_MODEL_VERSION
+            value: "moving_avg_k6_v1"
+          - name: EWMA_ALPHA
+            value: "0.35"
+          - name: EWMA_MIN_PERIODS
+            value: "2"
+          - name: EWMA_Z_THRESHOLD
+            value: "2.0"
+          - name: EWMA_SEVERITY_THRESHOLD
+            value: "2.3"
+          - name: EWMA_MODEL_VERSION
+            value: "ewma_v1"
+          - name: KALMAN_PROCESS_VAR
+            value: "0.05"
+          - name: KALMAN_OBSERVATION_VAR
+            value: "0.2"
+          - name: KALMAN_Z_THRESHOLD
+            value: "2.0"
+          - name: KALMAN_SEVERITY_THRESHOLD
+            value: "2.3"
+          - name: KALMAN_MODEL_VERSION
+            value: "kalman_v1"

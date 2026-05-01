@@ -90,6 +90,47 @@ The training script:
 4. trains a Random Forest model
 5. saves the model and feature column list to `ml/model.pkl`
 
+## Statistical time-series detectors
+
+Alongside the Random Forest, `ml/predict.py` runs three statistical detectors implemented in `ml/detectors.py`: a k-bucket moving average, EWMA, and a simple one-dimensional Kalman filter.
+
+- For each region, hourly rows are ordered by `bucket_start`.
+- The moving-average baseline is the **mean of the previous k** `total_case_events` values (the current bucket is excluded so a spike is not averaged into its own baseline).
+- EWMA uses an exponentially weighted baseline from previous bucket counts, so it reacts faster than a fixed k-window while still smoothing noise.
+- The Kalman detector treats `log1p(total_case_events)` as a noisy observation of hidden outbreak intensity and flags buckets with a large positive innovation compared with the prior filtered state.
+- Each detector also requires `avg_severity` to clear its severity threshold before labeling a bucket `high_risk`.
+- Detector `risk_score` values are scaled to `[0, 1]` for dashboard-friendly display.
+
+Rows are written to `ml_outbreak_predictions` with method-specific `model_version` values: `MODEL_VERSION` for RandomForest, `MOVING_AVG_MODEL_VERSION`, `EWMA_MODEL_VERSION`, and `KALMAN_MODEL_VERSION`.
+
+**Lookback:** The scoring query reads `ML_LOOKBACK_HOURS` (default `72`) of history so the first buckets in the output window still have a trailing baseline/state. Only the last `ML_OUTPUT_WINDOW_HOURS` (default `24`) are written for each method.
+
+Relevant environment variables:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `ML_LOOKBACK_HOURS` | 72 | SQL window for feature rows |
+| `ML_OUTPUT_WINDOW_HOURS` | 24 | Buckets to insert per run |
+| `MOVING_AVG_K` | 6 | Prior-window length |
+| `MOVING_AVG_Z_THRESHOLD` | 2.0 | Stored in `threshold` for MA rows |
+| `MOVING_AVG_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
+| `MOVING_AVG_MODEL_VERSION` | moving_avg_k6_v1 | `model_version` column |
+| `EWMA_ALPHA` | 0.35 | Exponential smoothing weight |
+| `EWMA_Z_THRESHOLD` | 2.0 | Stored in `threshold` for EWMA rows |
+| `EWMA_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
+| `EWMA_MODEL_VERSION` | ewma_v1 | `model_version` column |
+| `KALMAN_PROCESS_VAR` | 0.05 | How quickly hidden state can move |
+| `KALMAN_OBSERVATION_VAR` | 0.2 | Observation noise for `log1p(total_case_events)` |
+| `KALMAN_Z_THRESHOLD` | 2.0 | Stored in `threshold` for Kalman rows |
+| `KALMAN_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
+| `KALMAN_MODEL_VERSION` | kalman_v1 | `model_version` column |
+
+For a quick local check that does not connect to TimescaleDB or insert rows, run:
+
+```bash
+bash scripts/run-local-outbreak-smoke.sh
+```
+
 ## Current Training Data Status
 
 The latest retraining used synthetic pipeline-generated data from TimescaleDB.
@@ -129,19 +170,50 @@ The scoring script is:
 ml/predict.py
 ```
 
-It loads `ml/model.pkl`, scores recent rows from `vw_region_hourly_ml_features_windowed`, converts model probability into `high_risk` or `normal` using a threshold of `0.5`, and inserts the results into `ml_outbreak_predictions`.
+It loads `ml/model.pkl`, scores recent rows from `vw_region_hourly_ml_features_windowed`, converts model probability into `high_risk` or `normal` using a threshold of `0.5` (for the Random Forest), runs the statistical detectors on the same rows, and inserts **four rows per bucket per region** (one per method) into `ml_outbreak_predictions`, sharing the same `run_id`.
 
-## Latest Prediction Run
+## Current Real-DB Detector Check
 
-The latest scoring run successfully wrote 20 predictions to TimescaleDB.
+We also ran the moving-average detector against the current TimescaleDB feature view using the live port-forwarded database connection. The read-only check used 30 regional hourly feature rows from `vw_region_hourly_ml_features_windowed`, covering `2026-04-29 12:00:00+00` through `2026-04-30 18:00:00+00`.
 
-Example run ID:
+The real data had `total_case_events` ranging from 156 to 2367 per region-hour bucket. The moving-average detector flagged the latest high-volume `2026-04-30 18:00:00+00` bucket across all five regions, where counts rose from recent baselines around 476-499 to roughly 2139-2367. This looked like the intended behavior: the detector responded to sudden recent spikes while ignoring smaller elevated-but-less-spiky buckets.
 
-```text
-a9a4cd63-7b58-492b-8fa6-60d501e8577b
+## OpenShift Runbook Commands
+
+Current OpenShift path is a manual `Job` run after Spark writes feature views (CronJob is intentionally not used due namespace permissions).
+
+Build and push the ML image to the team imagestream:
+
+```bash
+oc apply -f infra/buildconfig-outbreak-predict-binary.yaml -n ds551-2026-spring-a5f0d1
+oc start-build outbreak-predict --from-dir=. --follow --wait -n ds551-2026-spring-a5f0d1
 ```
 
-The outputs were logically consistent with the synthetic label rule. Region-hours that met the elevated volume and severity rule received high risk scores, while rows below the severity threshold were predicted as normal.
+Run the ML job manually:
+
+```bash
+oc delete job outbreak-predict -n ds551-2026-spring-a5f0d1 --ignore-not-found
+oc apply -f ml/ml-model.yaml -n ds551-2026-spring-a5f0d1
+oc wait --for=condition=complete job/outbreak-predict -n ds551-2026-spring-a5f0d1 --timeout=240s
+oc logs job/outbreak-predict -n ds551-2026-spring-a5f0d1 --tail=80
+```
+
+Verify model outputs in `ml_outbreak_predictions`:
+
+```bash
+pw=$(oc get secret epidemic-db-spark -n ds551-2026-spring-a5f0d1 -o jsonpath='{.data.password}' | base64 -d)
+pod=$(oc get pods -n ds551-2026-spring-a5f0d1 -l app=timescaledb -o jsonpath='{.items[0].metadata.name}')
+oc exec -n ds551-2026-spring-a5f0d1 "$pod" -- bash -lc "PGPASSWORD='$pw' psql -U spark_writer -d epidemic -At -c \"WITH latest AS (SELECT run_id FROM ml_outbreak_predictions ORDER BY prediction_timestamp DESC LIMIT 1) SELECT m.run_id || '|' || m.model_version || '|' || m.cnt FROM (SELECT run_id, model_version, COUNT(*) AS cnt FROM ml_outbreak_predictions WHERE run_id = (SELECT run_id FROM latest) GROUP BY run_id, model_version) m ORDER BY m.model_version;\""
+```
+
+Expected verification pattern for a successful run:
+
+```text
+<run_id>|ewma_v1|<row_count>
+<run_id>|kalman_v1|<row_count>
+<run_id>|moving_avg_k6_v1|<row_count>
+<run_id>|v1|<row_count>
+```
 
 ## Vaccination Change Order Impact
 

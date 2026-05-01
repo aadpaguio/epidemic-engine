@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir \
     scikit-learn \
     joblib
 
-CMD ["python", "ml/predict.py"]
+CMD ["python", "-m", "ml.predict"]
