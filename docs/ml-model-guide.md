@@ -115,6 +115,12 @@ Relevant environment variables:
 | `MOVING_AVG_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
 | `MOVING_AVG_MODEL_VERSION` | moving_avg_k6_v1 | `model_version` column |
 
+For a quick local check that does not connect to TimescaleDB or insert rows, run:
+
+```bash
+bash scripts/run-local-outbreak-smoke.sh
+```
+
 ## Current Training Data Status
 
 The latest retraining used synthetic pipeline-generated data from TimescaleDB.
@@ -156,7 +162,13 @@ ml/predict.py
 
 It loads `ml/model.pkl`, scores recent rows from `vw_region_hourly_ml_features_windowed`, converts model probability into `high_risk` or `normal` using a threshold of `0.5` (for the Random Forest), runs the moving-average detector on the same rows, and inserts **two rows per bucket per region** (one per method) into `ml_outbreak_predictions`, sharing the same `run_id`.
 
-## Latest Prediction Run
+## Current Moving Average Smoke Test
+
+We also ran the moving-average detector against the current TimescaleDB feature view using the live port-forwarded database connection. The test read 30 regional hourly feature rows from `vw_region_hourly_ml_features_windowed`, covering `2026-04-29 12:00:00+00` through `2026-04-30 18:00:00+00`.
+
+The real data had `total_case_events` ranging from 156 to 2367 per region-hour bucket. The moving-average detector flagged the latest high-volume `2026-04-30 18:00:00+00` bucket across all five regions, where counts rose from recent baselines around 476-499 to roughly 2139-2367. This looked like the intended behavior: the detector responded to sudden recent spikes while ignoring smaller elevated-but-less-spiky buckets.
+
+## Mini Prediction Run (outdated, see above)
 
 The latest scoring run successfully wrote 20 predictions to TimescaleDB.
 
