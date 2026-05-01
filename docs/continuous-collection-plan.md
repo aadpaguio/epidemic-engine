@@ -622,6 +622,71 @@ done
 
 If this prints multiple event-hour buckets in recent offsets, the stream is out of order by payload event time. That is expected in the current course feed and is why the raw landing path is preferred.
 
+## Decoupled raw landing (WIP)
+
+This branch introduces a decoupled path:
+
+1. Typed Kafka topics are persisted to `raw_typed_events`.
+2. Spark features can be sourced from DB (`FEATURE_SOURCE_MODE=raw_db`) instead of Kafka.
+
+Create/update database objects first:
+
+```bash
+oc apply -f infra/database-deployment.yaml -n "$NAMESPACE"
+scripts/apply-raw-landing-ddl.sh
+```
+
+`oc apply` updates manifests, but does not re-run init SQL on existing DB volumes. Use `scripts/apply-raw-landing-ddl.sh` to apply the raw landing table on a live database.
+
+Run raw typed-event ingestion in one terminal:
+
+```bash
+bash scripts/run-raw-typed-ingester.sh start
+bash scripts/run-raw-typed-ingester.sh logs
+```
+
+The helper starts a pod in-cluster, pulls DB credentials from `epidemic-db-spark`, and runs the ingester with cluster-local endpoints (`kafka:9092`, `timescaledb-service:5432`).
+
+Stop/check status:
+
+```bash
+bash scripts/run-raw-typed-ingester.sh status
+bash scripts/run-raw-typed-ingester.sh stop
+```
+
+Run Spark features from DB for a target window:
+
+```bash
+WINDOW_START_UTC="2026-04-30T00:00:00Z"
+WINDOW_END_UTC="2026-04-30T01:00:00Z"
+RUN_ID="hourly-$(date -u +%Y%m%dT%H%M%SZ)"
+BATCH_ID="dbfeat-$(date -u +%Y%m%dT%H%M%SZ)"
+
+oc delete job epidemic-spark-etl -n "$NAMESPACE" --ignore-not-found --wait=true
+oc create -f infra/spark-job.yaml --dry-run=client -o yaml \
+  | oc set env -f - --local -o yaml \
+      WINDOW_START_UTC="$WINDOW_START_UTC" \
+      WINDOW_END_UTC="$WINDOW_END_UTC" \
+      REQUIRE_WINDOW_UTC=true \
+      FEATURE_SOURCE_MODE=raw_db \
+      RUN_ID="$RUN_ID" \
+      BATCH_ID="$BATCH_ID" \
+  | oc apply -n "$NAMESPACE" -f -
+```
+
+Continuous multi-window refresh (single Spark job per cycle):
+
+```bash
+export NAMESPACE=ds551-2026-spring-a5f0d1
+PHASE1_RUNS_PER_CYCLE=3 \
+MAX_DIRTY_WINDOWS_PER_RUN=6 \
+REFRESH_SLEEP_SEC=60 \
+LOG_FILE=logs/runtime/rawdb-feature-refresh.log \
+bash scripts/run-rawdb-feature-refresh.sh
+```
+
+This runner queries `raw_typed_events` vs `batch_window_runs`, selects dirty hours, collapses them into one UTC range, and launches a single Spark job in `FEATURE_SOURCE_MODE=raw_db`.
+
 ## Summary
 
 1. Use **real** raw Kafka traffic unless loadgen is explicitly needed.

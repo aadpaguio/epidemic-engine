@@ -50,17 +50,20 @@ spec:
               # PySpark lives in the image; spark-submit wires the classpath. Kafka SQL
               # connector is fetched via Ivy (--packages); cache under /tmp for OpenShift UIDs.
               exec "${SPARK_HOME}/bin/spark-submit" \
-                --master 'local[*]' \
+                --master 'local[2]' \
+                --conf spark.driver.memory=1024m \
+                --conf spark.driver.maxResultSize=512m \
+                --conf spark.sql.shuffle.partitions=32 \
                 --conf spark.jars.ivy=/tmp/spark-ivy2 \
                 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.7.3 \
                 /opt/epidemic/etl.py
           resources:
             requests:
-              memory: "1Gi"
-              cpu: "500m"
+              memory: "512Mi"
+              cpu: "250m"
             limits:
-              memory: "4Gi"
-              cpu: "2"
+              memory: "2Gi"
+              cpu: "1"
           terminationMessagePolicy: FallbackToLogsOnError
           env:
             # Same bootstrap as Phase 1 (`tekton/pipelinerun.yaml` → `kafka-bootstrap`).
