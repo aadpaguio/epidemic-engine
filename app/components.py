@@ -188,3 +188,82 @@ def line_vaccination_volume(df: pd.DataFrame):
     )
     _apply_time_axis(fig, plot_df)
     st.plotly_chart(fig, use_container_width=True)
+
+
+def line_detector_risk(df: pd.DataFrame, title: str = "Risk Score by Detection Method"):
+    if df.empty:
+        st.info("No detector output is available for the selected range.")
+        return
+    plot_df = _normalize_bucket_start(df)
+    fig = px.line(
+        plot_df,
+        x="bucket_start",
+        y="risk_score",
+        color="model_version",
+        markers=True,
+        title=title,
+    )
+    fig.update_yaxes(range=[0, 1], title="Risk Score")
+    _apply_time_axis(fig, plot_df)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def bar_detector_scores(df: pd.DataFrame, title: str = "Latest Detector Scores by Region"):
+    if df.empty:
+        st.info("No detector scores are available for the selected range.")
+        return
+    plot_df = df.copy()
+    if "bucket_start" in plot_df.columns:
+        plot_df = _normalize_bucket_start(plot_df)
+        latest_bucket = plot_df["bucket_start"].max()
+        plot_df = plot_df.loc[plot_df["bucket_start"] == latest_bucket].copy()
+    fig = px.bar(
+        plot_df,
+        x="region",
+        y="risk_score",
+        color="model_version",
+        barmode="group",
+        title=title,
+    )
+    fig.update_yaxes(range=[0, 1], title="Risk Score")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def bar_detector_agreement(df: pd.DataFrame, title: str = "Detector Agreement by Region"):
+    if df.empty:
+        st.info("No detector agreement rows are available.")
+        return
+    plot_df = df.copy()
+    if "bucket_start" in plot_df.columns:
+        plot_df = _normalize_bucket_start(plot_df)
+        latest_bucket = plot_df["bucket_start"].max()
+        plot_df = plot_df.loc[plot_df["bucket_start"] == latest_bucket].copy()
+    fig = px.bar(
+        plot_df,
+        x="region",
+        y="high_risk_method_count",
+        color="consensus_label",
+        text="high_risk_method_count",
+        title=title,
+        category_orders={"consensus_label": ["High Risk", "Elevated", "Normal"]},
+    )
+    fig.update_yaxes(title="Methods Flagging High Risk")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def line_detector_agreement(df: pd.DataFrame, title: str = "Detector Agreement Over Time"):
+    if df.empty:
+        st.info("No detector agreement trend is available.")
+        return
+    plot_df = _normalize_bucket_start(df)
+    fig = px.line(
+        plot_df,
+        x="bucket_start",
+        y="high_risk_method_count",
+        color="region",
+        markers=True,
+        title=title,
+    )
+    fig.update_yaxes(title="Methods Flagging High Risk")
+    _apply_time_axis(fig, plot_df)
+    st.plotly_chart(fig, use_container_width=True)

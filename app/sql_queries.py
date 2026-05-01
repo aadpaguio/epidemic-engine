@@ -124,3 +124,100 @@ def get_regions() -> list[str]:
     """
     df = _query_df(sql)
     return df["region"].tolist()
+
+
+@st.cache_data(ttl=60)
+def get_latest_prediction_run() -> pd.DataFrame:
+    sql = """
+        SELECT
+            run_id,
+            MAX(prediction_timestamp) AS latest_prediction_timestamp
+        FROM ml_outbreak_predictions
+        GROUP BY run_id
+        ORDER BY latest_prediction_timestamp DESC
+        LIMIT 1;
+    """
+    return _query_df(sql)
+
+
+@st.cache_data(ttl=60)
+def get_prediction_methods() -> list[str]:
+    sql = """
+        WITH latest AS (
+            SELECT run_id
+            FROM ml_outbreak_predictions
+            ORDER BY prediction_timestamp DESC
+            LIMIT 1
+        )
+        SELECT DISTINCT model_version
+        FROM ml_outbreak_predictions
+        WHERE run_id = (SELECT run_id FROM latest)
+        ORDER BY model_version;
+    """
+    df = _query_df(sql)
+    if df.empty:
+        return []
+    return df["model_version"].tolist()
+
+
+@st.cache_data(ttl=60)
+def get_prediction_rows(
+    hours: int = 24,
+    region: str = "ALL",
+    model_version: str = "ALL",
+) -> pd.DataFrame:
+    sql = """
+        WITH latest AS (
+            SELECT run_id
+            FROM ml_outbreak_predictions
+            ORDER BY prediction_timestamp DESC
+            LIMIT 1
+        )
+        SELECT
+            prediction_timestamp,
+            bucket_start,
+            region,
+            model_version,
+            risk_score,
+            predicted_label,
+            threshold,
+            run_id
+        FROM ml_outbreak_predictions
+        WHERE run_id = (SELECT run_id FROM latest)
+          AND bucket_start >= now() - (%s || ' hours')::interval
+          AND (%s = 'ALL' OR region = %s)
+          AND (%s = 'ALL' OR model_version = %s)
+        ORDER BY bucket_start, region, model_version;
+    """
+    return _query_df(sql, params=(hours, region, region, model_version, model_version))
+
+
+@st.cache_data(ttl=60)
+def get_detector_consensus(hours: int = 24, region: str = "ALL") -> pd.DataFrame:
+    sql = """
+        WITH latest AS (
+            SELECT run_id
+            FROM ml_outbreak_predictions
+            ORDER BY prediction_timestamp DESC
+            LIMIT 1
+        )
+        SELECT
+            bucket_start,
+            region,
+            COUNT(*) FILTER (WHERE predicted_label = 'high_risk') AS high_risk_method_count,
+            COUNT(*) AS methods_reporting,
+            AVG(risk_score) AS avg_risk_score,
+            MAX(risk_score) AS max_risk_score,
+            CASE
+                WHEN COUNT(*) FILTER (WHERE predicted_label = 'high_risk') >= 3 THEN 'High Risk'
+                WHEN COUNT(*) FILTER (WHERE predicted_label = 'high_risk') >= 1 THEN 'Elevated'
+                ELSE 'Normal'
+            END AS consensus_label
+        FROM ml_outbreak_predictions
+        WHERE run_id = (SELECT run_id FROM latest)
+          AND bucket_start >= now() - (%s || ' hours')::interval
+          AND (%s = 'ALL' OR region = %s)
+        GROUP BY bucket_start, region
+        ORDER BY bucket_start, region;
+    """
+    return _query_df(sql, params=(hours, region, region))
