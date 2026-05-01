@@ -178,17 +178,42 @@ We also ran the moving-average detector against the current TimescaleDB feature 
 
 The real data had `total_case_events` ranging from 156 to 2367 per region-hour bucket. The moving-average detector flagged the latest high-volume `2026-04-30 18:00:00+00` bucket across all five regions, where counts rose from recent baselines around 476-499 to roughly 2139-2367. This looked like the intended behavior: the detector responded to sudden recent spikes while ignoring smaller elevated-but-less-spiky buckets.
 
-## Mini Prediction Run (outdated, see above)
+## OpenShift Runbook Commands
 
-The latest scoring run successfully wrote 20 predictions to TimescaleDB.
+Current OpenShift path is a manual `Job` run after Spark writes feature views (CronJob is intentionally not used due namespace permissions).
 
-Example run ID:
+Build and push the ML image to the team imagestream:
 
-```text
-a9a4cd63-7b58-492b-8fa6-60d501e8577b
+```bash
+oc apply -f infra/buildconfig-outbreak-predict-binary.yaml -n ds551-2026-spring-a5f0d1
+oc start-build outbreak-predict --from-dir=. --follow --wait -n ds551-2026-spring-a5f0d1
 ```
 
-The outputs were logically consistent with the synthetic label rule. Region-hours that met the elevated volume and severity rule received high risk scores, while rows below the severity threshold were predicted as normal.
+Run the ML job manually:
+
+```bash
+oc delete job outbreak-predict -n ds551-2026-spring-a5f0d1 --ignore-not-found
+oc apply -f ml/ml-model.yaml -n ds551-2026-spring-a5f0d1
+oc wait --for=condition=complete job/outbreak-predict -n ds551-2026-spring-a5f0d1 --timeout=240s
+oc logs job/outbreak-predict -n ds551-2026-spring-a5f0d1 --tail=80
+```
+
+Verify model outputs in `ml_outbreak_predictions`:
+
+```bash
+pw=$(oc get secret epidemic-db-spark -n ds551-2026-spring-a5f0d1 -o jsonpath='{.data.password}' | base64 -d)
+pod=$(oc get pods -n ds551-2026-spring-a5f0d1 -l app=timescaledb -o jsonpath='{.items[0].metadata.name}')
+oc exec -n ds551-2026-spring-a5f0d1 "$pod" -- bash -lc "PGPASSWORD='$pw' psql -U spark_writer -d epidemic -At -c \"WITH latest AS (SELECT run_id FROM ml_outbreak_predictions ORDER BY prediction_timestamp DESC LIMIT 1) SELECT m.run_id || '|' || m.model_version || '|' || m.cnt FROM (SELECT run_id, model_version, COUNT(*) AS cnt FROM ml_outbreak_predictions WHERE run_id = (SELECT run_id FROM latest) GROUP BY run_id, model_version) m ORDER BY m.model_version;\""
+```
+
+Expected verification pattern for a successful run:
+
+```text
+<run_id>|ewma_v1|<row_count>
+<run_id>|kalman_v1|<row_count>
+<run_id>|moving_avg_k6_v1|<row_count>
+<run_id>|v1|<row_count>
+```
 
 ## Vaccination Change Order Impact
 
