@@ -12,7 +12,7 @@ import os
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 from typing import Any
 
@@ -160,6 +160,47 @@ def record_window_status(
             conn.commit()
 
 
+def iter_hour_windows(window_start: datetime, window_end: datetime) -> list[tuple[datetime, datetime]]:
+    start = window_start.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    end = window_end.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    if window_end > end:
+        end = end + timedelta(hours=1)
+    windows: list[tuple[datetime, datetime]] = []
+    cursor = start
+    while cursor < end:
+        nxt = cursor + timedelta(hours=1)
+        windows.append((cursor, nxt))
+        cursor = nxt
+    return windows
+
+
+def record_window_status_range(
+    jdbc_url: str,
+    user: str,
+    password: str,
+    run_id: str,
+    batch_id: str,
+    window_start: datetime,
+    window_end: datetime,
+    status: str,
+    reason_code: str | None,
+    reason_detail: str | None = None,
+) -> None:
+    for start, end in iter_hour_windows(window_start, window_end):
+        record_window_status(
+            jdbc_url,
+            user,
+            password,
+            run_id,
+            batch_id,
+            start,
+            end,
+            status,
+            reason_code,
+            reason_detail,
+        )
+
+
 def severity_for_analytics(severity_col: Column) -> Column:
     """
     Generator emits severity as strings. Map to ordinals for sum/avg aggregates:
@@ -292,6 +333,38 @@ def read_typed_kafka(
         .option("subscribe", topics)
         .option("startingOffsets", "earliest")
         .option("endingOffsets", "latest")
+        .load()
+    )
+
+
+def read_raw_typed_events_db(
+    spark: SparkSession,
+    jdbc_url: str,
+    jdbc_user: str,
+    jdbc_password: str,
+    window_start: datetime,
+    window_end: datetime,
+) -> DataFrame:
+    driver = _optional_env("JDBC_DRIVER", "org.postgresql.Driver")
+    query = f"""
+    (
+      SELECT
+        topic,
+        kafka_partition AS partition,
+        kafka_offset AS offset,
+        payload_json::text AS value
+      FROM raw_typed_events
+      WHERE event_ts >= '{window_start.isoformat()}'
+        AND event_ts < '{window_end.isoformat()}'
+    ) raw_window
+    """
+    return (
+        spark.read.format("jdbc")
+        .option("driver", driver)
+        .option("url", jdbc_url)
+        .option("dbtable", query)
+        .option("user", jdbc_user)
+        .option("password", jdbc_password)
         .load()
     )
 
@@ -987,8 +1060,9 @@ def main() -> int:
     batch_id = _optional_env("BATCH_ID") or run_id
     run_ts = datetime.now(timezone.utc)
     window_start, window_end = resolve_window()
+    source_mode = (_optional_env("FEATURE_SOURCE_MODE", "kafka") or "kafka").lower()
 
-    kafka_bootstrap = _env("KAFKA_BOOTSTRAP")
+    kafka_bootstrap = _optional_env("KAFKA_BOOTSTRAP")
     topic_symptom = _optional_env("TOPIC_SYMPTOM", DEFAULT_SYMPTOM_TOPIC) or DEFAULT_SYMPTOM_TOPIC
     topic_clinic = _optional_env("TOPIC_CLINIC", DEFAULT_CLINIC_TOPIC) or DEFAULT_CLINIC_TOPIC
     topic_hospital = (
@@ -1018,6 +1092,7 @@ def main() -> int:
             "batch_id": batch_id,
             "started_at": started_at.isoformat(),
             "skip_jdbc_write": skip_jdbc,
+            "feature_source_mode": source_mode,
             "window_start_utc": window_start.isoformat(),
             "window_end_utc": window_end.isoformat(),
         }
@@ -1028,15 +1103,32 @@ def main() -> int:
     try:
         spark = build_spark()
         expected_topics = (topic_symptom, topic_clinic, topic_hospital, topic_vaccination)
-
-        kafka_df = read_typed_kafka(
-            spark,
-            kafka_bootstrap,
-            topic_symptom,
-            topic_clinic,
-            topic_hospital,
-            topic_vaccination,
-        )
+        if source_mode == "kafka":
+            if not kafka_bootstrap:
+                raise RuntimeError("KAFKA_BOOTSTRAP is required when FEATURE_SOURCE_MODE=kafka")
+            kafka_df = read_typed_kafka(
+                spark,
+                kafka_bootstrap,
+                topic_symptom,
+                topic_clinic,
+                topic_hospital,
+                topic_vaccination,
+            )
+        elif source_mode == "raw_db":
+            if skip_jdbc:
+                raise RuntimeError("SKIP_JDBC_WRITE=true is not supported when FEATURE_SOURCE_MODE=raw_db")
+            kafka_df = read_raw_typed_events_db(
+                spark,
+                jdbc_url,
+                jdbc_user,
+                jdbc_password,
+                window_start,
+                window_end,
+            )
+        else:
+            raise RuntimeError(
+                f"Unsupported FEATURE_SOURCE_MODE: {source_mode} (expected kafka or raw_db)"
+            )
         _, total_consumed = log_kafka_read_slices(
             kafka_df, run_id, batch_id, expected_topics
         )
@@ -1117,7 +1209,7 @@ def main() -> int:
             )
             rows_written_total = 0
         else:
-            record_window_status(
+            record_window_status_range(
                 jdbc_url,
                 jdbc_user,
                 jdbc_password,
@@ -1245,7 +1337,7 @@ def main() -> int:
             }
         )
         if not skip_jdbc:
-            record_window_status(
+            record_window_status_range(
                 jdbc_url,
                 jdbc_user,
                 jdbc_password,
@@ -1281,7 +1373,7 @@ def main() -> int:
         )
         if not skip_jdbc:
             try:
-                record_window_status(
+                record_window_status_range(
                     jdbc_url,
                     jdbc_user,
                     jdbc_password,
