@@ -1060,7 +1060,14 @@ def main() -> int:
     batch_id = _optional_env("BATCH_ID") or run_id
     run_ts = datetime.now(timezone.utc)
     window_start, window_end = resolve_window()
-    source_mode = (_optional_env("FEATURE_SOURCE_MODE", "kafka") or "kafka").lower()
+    skip_jdbc = _env_truthy("SKIP_JDBC_WRITE")
+    # Default feature source: durable DB landing table when JDBC is enabled (normal runs).
+    # Dry runs (`SKIP_JDBC_WRITE=true`) still default to Kafka because `raw_db` requires JDBC reads.
+    source_mode_raw = _optional_env("FEATURE_SOURCE_MODE", "").strip().lower()
+    if source_mode_raw:
+        source_mode = source_mode_raw
+    else:
+        source_mode = "kafka" if skip_jdbc else "raw_db"
 
     kafka_bootstrap = _optional_env("KAFKA_BOOTSTRAP")
     topic_symptom = _optional_env("TOPIC_SYMPTOM", DEFAULT_SYMPTOM_TOPIC) or DEFAULT_SYMPTOM_TOPIC
@@ -1072,7 +1079,6 @@ def main() -> int:
         _optional_env("TOPIC_VACCINATION", DEFAULT_VACCINATION_TOPIC) or DEFAULT_VACCINATION_TOPIC
     )
 
-    skip_jdbc = _env_truthy("SKIP_JDBC_WRITE")
     jdbc_url = jdbc_user = jdbc_password = ""
     if not skip_jdbc:
         jdbc_url = _env("JDBC_URL")
