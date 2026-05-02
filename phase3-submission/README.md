@@ -11,7 +11,7 @@
 
 ## Note on deployment location
 
-The visualization runs as a **local process** (developer laptop), not as a pod in the team namespace. The database remains **hosted in OpenShift** (TimescaleDB). Connectivity is established via **`oc port-forward`** to the cluster service and credentials supplied through environment variables. Section 1 of `db-query-evidence.md` explains why this still satisfies “queries against the current database state” as described in the Phase 3 instructions.
+The visualization runs as a **local process** (developer laptop), not as a pod in the team namespace. The database remains **hosted in OpenShift** (TimescaleDB). Connectivity is established via **`oc port-forward`** to the cluster service and credentials supplied through environment variables.
 
 ## Source code reference
 
