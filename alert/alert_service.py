@@ -17,6 +17,7 @@ Environment variables (defaults match docs/alerting-guide.md):
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import time
@@ -26,25 +27,41 @@ from typing import Any
 import psycopg2
 from psycopg2.extras import Json
 
+logger = logging.getLogger(__name__)
+
+
+def _env_int(name: str, default: int, *, minimum: int = 0) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return max(minimum, default)
+    try:
+        return max(minimum, int(raw.strip()))
+    except ValueError:
+        logger.warning("Invalid %s=%r; using default %s", name, raw, default)
+        return max(minimum, default)
+
+
 DATABASE_URL = os.getenv("DATABASE_URL")
-ALERT_POLL_SECONDS = int(os.getenv("ALERT_POLL_SECONDS", "300"))
-ALERT_COOLDOWN_SECONDS = int(os.getenv("ALERT_COOLDOWN_SECONDS", "1800"))
-PREDICTION_STALE_MINUTES = int(os.getenv("PREDICTION_STALE_MINUTES", "180"))
-FEATURE_STALE_HOURS = int(os.getenv("FEATURE_STALE_HOURS", "12"))
-OUTBREAK_LOOKBACK_HOURS = int(os.getenv("OUTBREAK_LOOKBACK_HOURS", "24"))
-MIN_CONFIRMING_MODELS = int(os.getenv("MIN_CONFIRMING_MODELS", "2"))
+ALERT_POLL_SECONDS = _env_int("ALERT_POLL_SECONDS", 300, minimum=5)
+ALERT_COOLDOWN_SECONDS = _env_int("ALERT_COOLDOWN_SECONDS", 1800, minimum=0)
+PREDICTION_STALE_MINUTES = _env_int("PREDICTION_STALE_MINUTES", 180, minimum=1)
+FEATURE_STALE_HOURS = _env_int("FEATURE_STALE_HOURS", 12, minimum=1)
+OUTBREAK_LOOKBACK_HOURS = _env_int("OUTBREAK_LOOKBACK_HOURS", 24, minimum=1)
+PREFERRED_MODELS = ("moving_avg_k6_v1", "ewma_v1", "kalman_v1", "v1")
+SINGLE_ALERT_MODELS = ("moving_avg_k6_v1", "ewma_v1")
+_raw_min_models = _env_int("MIN_CONFIRMING_MODELS", 2, minimum=1)
+MIN_CONFIRMING_MODELS = min(_raw_min_models, len(PREFERRED_MODELS))
 OUTBREAK_ALERT_SINGLE_MODEL = os.getenv(
     "OUTBREAK_ALERT_SINGLE_MODEL", "0"
 ).lower() in ("1", "true", "yes")
-
-PREFERRED_MODELS = ("moving_avg_k6_v1", "ewma_v1", "kalman_v1", "v1")
-SINGLE_ALERT_MODELS = ("moving_avg_k6_v1", "ewma_v1")
 
 
 def normalize_db_url(url: str) -> str:
     u = url.strip()
     if u.startswith("postgresql+psycopg2://"):
         u = "postgresql://" + u[len("postgresql+psycopg2://") :]
+    elif u.startswith("postgres://"):
+        u = "postgresql://" + u[len("postgres://") :]
     return u
 
 
@@ -149,6 +166,79 @@ def upsert_alert(
     conn.commit()
 
 
+def resolve_pipeline_alert(conn, alert_key: str) -> None:
+    """Mark a pipeline alert resolved when the underlying condition clears."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE alert_events
+            SET status = 'resolved', updated_at = now()
+            WHERE alert_key = %s AND status = 'active'
+            """,
+            (alert_key,),
+        )
+    conn.commit()
+
+
+def resolve_composite_outbreaks_not_in(conn, active_keys: set[str]) -> None:
+    """Resolve composite outbreak rows that no longer match current high_risk query."""
+    with conn.cursor() as cur:
+        if not active_keys:
+            cur.execute(
+                """
+                UPDATE alert_events
+                SET status = 'resolved', updated_at = now()
+                WHERE status = 'active'
+                  AND alert_key ~ '^outbreak:.+:composite$'
+                """
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE alert_events
+                SET status = 'resolved', updated_at = now()
+                WHERE status = 'active'
+                  AND alert_key ~ '^outbreak:.+:composite$'
+                  AND NOT (alert_key = ANY(%s))
+                """,
+                (list(active_keys),),
+            )
+    conn.commit()
+
+
+def resolve_single_outbreaks_not_in(conn, active_keys: set[str]) -> None:
+    with conn.cursor() as cur:
+        if not active_keys:
+            cur.execute(
+                """
+                UPDATE alert_events
+                SET status = 'resolved', updated_at = now()
+                WHERE status = 'active'
+                  AND alert_key ~ '^outbreak_single:.+'
+                """
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE alert_events
+                SET status = 'resolved', updated_at = now()
+                WHERE status = 'active'
+                  AND alert_key ~ '^outbreak_single:.+'
+                  AND NOT (alert_key = ANY(%s))
+                """,
+                (list(active_keys),),
+            )
+    conn.commit()
+
+
+def _model_versions_join(models) -> str:
+    if models is None:
+        return ""
+    if isinstance(models, (list, tuple)):
+        return ", ".join(str(m) for m in models)
+    return str(models)
+
+
 def check_stale_predictions(conn) -> None:
     with conn.cursor() as cur:
         cur.execute(
@@ -156,7 +246,11 @@ def check_stale_predictions(conn) -> None:
         )
         row = cur.fetchone()
     latest = row[0] if row else None
+    if latest is not None:
+        resolve_pipeline_alert(conn, "pipeline:no_predictions")
+
     if latest is None:
+        resolve_pipeline_alert(conn, "pipeline:stale_predictions")
         key = "pipeline:no_predictions"
         if cooldown_allows(conn, key):
             payload = {
@@ -185,7 +279,9 @@ def check_stale_predictions(conn) -> None:
     if latest.tzinfo is None:
         latest = latest.replace(tzinfo=timezone.utc)
     age_min = (datetime.now(timezone.utc) - latest).total_seconds() / 60.0
-    if age_min > PREDICTION_STALE_MINUTES:
+    if age_min <= PREDICTION_STALE_MINUTES:
+        resolve_pipeline_alert(conn, "pipeline:stale_predictions")
+    else:
         key = "pipeline:stale_predictions"
         if cooldown_allows(conn, key):
             payload = {
@@ -232,7 +328,9 @@ def check_feature_freshness(conn) -> None:
     if latest.tzinfo is None:
         latest = latest.replace(tzinfo=timezone.utc)
     age_h = (datetime.now(timezone.utc) - latest).total_seconds() / 3600.0
-    if age_h > FEATURE_STALE_HOURS:
+    if age_h <= FEATURE_STALE_HOURS:
+        resolve_pipeline_alert(conn, "pipeline:stale_features")
+    else:
         key = "pipeline:stale_features"
         if cooldown_allows(conn, key):
             payload = {
@@ -304,19 +402,25 @@ def check_outbreak_composite(conn) -> None:
         cur.execute(sql, params)
         rows = cur.fetchall()
 
+    active_composite: set[str] = set()
+    for bucket_start, region, *_ in rows:
+        bucket_iso = bucket_start.isoformat() if bucket_start else "unknown"
+        active_composite.add(f"outbreak:{region}:{bucket_iso}:composite")
+
     for bucket_start, region, models, n_models, max_risk, run_id in rows:
         bucket_iso = bucket_start.isoformat() if bucket_start else "unknown"
         key = f"outbreak:{region}:{bucket_iso}:composite"
         if not cooldown_allows(conn, key):
             continue
         severity = "critical" if n_models >= 3 else "warning"
+        mv_list = list(models) if models else []
         payload = {
             "component": "alert-service",
             "alert_type": "outbreak_risk",
             "severity": severity,
             "region": region,
             "bucket_start": bucket_iso,
-            "model_versions": list(models) if models else [],
+            "model_versions": mv_list,
             "n_models": n_models,
             "max_risk_score": float(max_risk) if max_risk is not None else None,
             "run_id": run_id,
@@ -330,21 +434,24 @@ def check_outbreak_composite(conn) -> None:
             severity=severity,
             region=region,
             bucket_start=bucket_start,
-            model_versions=list(models) if models else [],
+            model_versions=mv_list,
             max_risk_score=float(max_risk) if max_risk is not None else None,
             run_id=str(run_id) if run_id else None,
             message=(
                 f"Outbreak signal: {region} @ {bucket_iso} — "
-                f"{n_models} models agree: {', '.join(models)}"
+                f"{n_models} models agree: {_model_versions_join(models)}"
             ),
             raw_payload=payload,
         )
         log_alert(payload)
 
+    resolve_composite_outbreaks_not_in(conn, active_composite)
+
 
 def check_outbreak_single(conn) -> None:
     """Single preferred detector (moving_avg / ewma) high_risk — lower severity."""
     if not OUTBREAK_ALERT_SINGLE_MODEL:
+        resolve_single_outbreaks_not_in(conn, set())
         return
     _in = ", ".join(["%s"] * len(SINGLE_ALERT_MODELS))
     sql = f"""
@@ -384,6 +491,11 @@ def check_outbreak_single(conn) -> None:
         cur.execute(sql, params)
         rows = cur.fetchall()
 
+    active_single: set[str] = set()
+    for bucket_start, region, *_ in rows:
+        bucket_iso = bucket_start.isoformat() if bucket_start else "unknown"
+        active_single.add(f"outbreak_single:{region}:{bucket_iso}")
+
     for bucket_start, region, models, _n_models, max_risk, run_id in rows:
         bucket_iso = bucket_start.isoformat() if bucket_start else "unknown"
         key = f"outbreak_single:{region}:{bucket_iso}"
@@ -419,6 +531,8 @@ def check_outbreak_single(conn) -> None:
         )
         log_alert(payload)
 
+    resolve_single_outbreaks_not_in(conn, active_single)
+
 
 def run_cycle(conn) -> None:
     ensure_tables(conn)
@@ -429,6 +543,10 @@ def run_cycle(conn) -> None:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     if not DATABASE_URL:
         print("DATABASE_URL is not set", file=sys.stderr)
         sys.exit(1)

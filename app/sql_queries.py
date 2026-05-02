@@ -1,7 +1,11 @@
+import logging
+
 import pandas as pd
 import streamlit as st
 
 from db import get_connection
+
+logger = logging.getLogger(__name__)
 
 
 def _query_df(sql: str, params=None) -> pd.DataFrame:
@@ -139,7 +143,8 @@ def get_alert_events(limit: int = 300) -> pd.DataFrame:
     """
     try:
         return _query_df(sql, params=(limit,))
-    except Exception:
+    except Exception as exc:
+        logger.warning("get_alert_events failed: %s", exc, exc_info=True)
         return pd.DataFrame()
 
 

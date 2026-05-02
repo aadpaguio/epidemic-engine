@@ -48,11 +48,13 @@ DDL lives in `infra/database-init.sql`, `infra/database-deployment.yaml` (bootst
 
 In-memory state is optional; DB-backed keys survive pod restarts without duplicate dashboard rows every restart.
 
+When the underlying condition clears (predictions fresh again, feature buckets current, outbreak rows no longer match the composite/single queries), the service sets **`status` to `resolved`** for the affected `alert_key` rows so the Streamlit table does not show stale “active” pipeline or outbreak alerts indefinitely.
+
 ## Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | — | **Required.** Same secret pattern as ML (`outbreak-db-url`). Accepts `postgresql+psycopg2://…`; normalized for `psycopg2`. |
+| `DATABASE_URL` | — | **Required.** Same secret pattern as ML (`outbreak-db-url`). Normalizes `postgresql+psycopg2://` and `postgres://` to `postgresql://` for `psycopg2`. |
 | `ALERT_POLL_SECONDS` | `300` | Sleep between poll cycles |
 | `ALERT_COOLDOWN_SECONDS` | `1800` | Min seconds between repeated fires per `alert_key` |
 | `PREDICTION_STALE_MINUTES` | `180` | Stale prediction threshold |

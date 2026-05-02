@@ -206,16 +206,25 @@ elif page == "Alerts":
     else:
         severities = sorted(alerts["severity"].dropna().unique().tolist())
         types = sorted(alerts["alert_type"].dropna().unique().tolist())
-        col_a, col_b = st.columns(2)
+        statuses = sorted(alerts["status"].dropna().unique().tolist()) if "status" in alerts.columns else []
+        col_a, col_b, col_c = st.columns(3)
         with col_a:
             sev_pick = st.multiselect("Severity", severities, default=severities)
         with col_b:
             type_pick = st.multiselect("Alert type", types, default=types)
+        with col_c:
+            stat_pick = (
+                st.multiselect("Status", statuses, default=statuses)
+                if statuses
+                else []
+            )
         filtered = alerts
         if sev_pick:
             filtered = filtered[filtered["severity"].isin(sev_pick)]
         if type_pick:
             filtered = filtered[filtered["alert_type"].isin(type_pick)]
+        if stat_pick and "status" in filtered.columns:
+            filtered = filtered[filtered["status"].isin(stat_pick)]
         display_cols = [
             "updated_at",
             "severity",
