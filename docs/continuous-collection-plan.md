@@ -317,7 +317,9 @@ What each setting means:
 
 - `BATCH_SIZE=500`: each Phase 1 PipelineRun can consume up to 500 raw records.
 - `PHASE1_RUNS_PER_CYCLE=2`: run two Phase 1 batches before raw ingest and feature refresh.
-- `INGEST_RUN_SECONDS=30`: run the in-cluster typed-topic ingester long enough to catch up.
+- `PHASE1_TIMEOUT_SEC=300` by default: each Phase 1 PipelineRun gets up to 5 minutes.
+- `PHASE1_CANCEL_ON_TIMEOUT=1` by default: a timed-out Phase 1 run is cancelled before raw ingest starts, preventing overlap.
+- `INGEST_RUN_SECONDS=60` by default; the example uses `30` for faster cycles. Increase to `60` or `90` if Phase 1 is moving larger batches.
 - `MAX_DIRTY_WINDOWS_PER_RUN=8`: refresh up to eight dirty event-time hours per Spark cycle.
 
 ### Smoke Test

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Smoke test Phase 2 Spark ETL:
 #   typed Kafka topics -> Spark ETL -> feature_*_hourly tables (incl. vaccination).
+# Does not run raw typed-topic ingest into raw_typed_events; for the recommended path
+# (Phase 1 -> ingest -> Spark from DB), use scripts/run-phase1-rawdb-sequenced.sh instead.
 #
 # Run from repo root after `oc login` and `oc project <namespace>`.
 set -euo pipefail
