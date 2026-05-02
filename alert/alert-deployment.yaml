@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: epidemic-alert-config
+  labels:
+    app: epidemic-alert-service
+data:
+  ALERT_POLL_SECONDS: "300"
+  ALERT_COOLDOWN_SECONDS: "1800"
+  PREDICTION_STALE_MINUTES: "180"
+  FEATURE_STALE_HOURS: "12"
+  OUTBREAK_LOOKBACK_HOURS: "24"
+  MIN_CONFIRMING_MODELS: "2"
+  OUTBREAK_ALERT_SINGLE_MODEL: "0"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epidemic-alert-service
+  labels:
+    app: epidemic-alert-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: epidemic-alert-service
+  template:
+    metadata:
+      labels:
+        app: epidemic-alert-service
+    spec:
+      containers:
+        - name: epidemic-alert-service
+          # Build from repo root: podman build -f alert/Dockerfile -t <registry>/<project>/epidemic-alert-service:latest .
+          image: image-registry.openshift-image-registry.svc:5000/ds551-2026-spring-a5f0d1/epidemic-alert-service:latest
+          envFrom:
+            - configMapRef:
+                name: epidemic-alert-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: outbreak-db-url
+                  key: database_url
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

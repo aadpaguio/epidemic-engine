@@ -20,6 +20,7 @@ from components import (
 )
 from db import render_connection_status
 from sql_queries import (
+    get_alert_events,
     get_detector_consensus,
     get_diagnosis_temperature,
     get_event_volume,
@@ -452,6 +453,7 @@ with st.sidebar:
             "Detector Signals",
             "Operations Desk",
             "Clinical Context",
+            "Alerts",
         ],
     )
     hours = st.slider("Time Window (hours)", min_value=6, max_value=168, value=72, step=6)
@@ -922,6 +924,53 @@ elif page == "Operations Desk":
                 "follow_up_rate": "Rate",
             },
         )
+
+elif page == "Alerts":
+    st.subheader("Operational Alerts (Phase 3)")
+    st.caption(
+        "Fed by `epidemic-alert-service` rows in `alert_events`. "
+        "See docs/alerting-guide.md for rules and troubleshooting."
+    )
+    alerts = get_alert_events(limit=500)
+    if alerts.empty:
+        st.info("No alert rows yet — deploy the alert service or widen thresholds.")
+    else:
+        severities = sorted(alerts["severity"].dropna().unique().tolist())
+        types = sorted(alerts["alert_type"].dropna().unique().tolist())
+        statuses = sorted(alerts["status"].dropna().unique().tolist()) if "status" in alerts.columns else []
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            sev_pick = st.multiselect("Severity", severities, default=severities)
+        with col_b:
+            type_pick = st.multiselect("Alert type", types, default=types)
+        with col_c:
+            stat_pick = (
+                st.multiselect("Status", statuses, default=statuses)
+                if statuses
+                else []
+            )
+        filtered = alerts
+        if sev_pick:
+            filtered = filtered[filtered["severity"].isin(sev_pick)]
+        if type_pick:
+            filtered = filtered[filtered["alert_type"].isin(type_pick)]
+        if stat_pick and "status" in filtered.columns:
+            filtered = filtered[filtered["status"].isin(stat_pick)]
+        display_cols = [
+            "updated_at",
+            "severity",
+            "alert_type",
+            "region",
+            "bucket_start",
+            "model_versions",
+            "max_risk_score",
+            "run_id",
+            "message",
+            "status",
+            "alert_key",
+        ]
+        show = filtered[[c for c in display_cols if c in filtered.columns]]
+        st.dataframe(show, use_container_width=True, hide_index=True)
 
 elif page == "Clinical Context":
     latest_diag_rows = _latest_processed_rows(diagnosis).sort_values(

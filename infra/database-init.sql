@@ -405,3 +405,29 @@ CREATE INDEX IF NOT EXISTS idx_ml_outbreak_predictions_region_bucket
 
 CREATE INDEX IF NOT EXISTS idx_ml_outbreak_predictions_label_time
     ON ml_outbreak_predictions (predicted_label, prediction_timestamp DESC);
+
+-- Phase 3 alerting: dashboard + logs (epidemic-alert-service)
+CREATE TABLE IF NOT EXISTS alert_events (
+    alert_key      TEXT PRIMARY KEY,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    alert_type     TEXT        NOT NULL,
+    severity       TEXT        NOT NULL,
+    region         TEXT,
+    bucket_start   TIMESTAMPTZ,
+    model_versions TEXT[],
+    max_risk_score DOUBLE PRECISION,
+    run_id         TEXT,
+    status         TEXT        NOT NULL DEFAULT 'active',
+    message        TEXT,
+    raw_payload    JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_events_updated
+    ON alert_events (updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_alert_events_status
+    ON alert_events (status, updated_at DESC);
+
+COMMENT ON TABLE alert_events IS
+    'Phase 3 alert service rows for Streamlit and operational logs.';
