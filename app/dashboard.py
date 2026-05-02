@@ -41,6 +41,13 @@ st.caption(
     "Trend visuals are ordered by event time."
 )
 
+MODEL_LABELS = {
+    "v1": "Random Forest",
+    "moving_avg_k6_v1": "Moving Average",
+    "ewma_v1": "EWMA",
+    "kalman_v1": "Kalman Filter",
+}
+
 
 def _coerce_bucket_start(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
@@ -151,6 +158,18 @@ def _format_pct(value) -> str:
     return f"{float(value):.1%}"
 
 
+def _pretty_model_name(model_version: str) -> str:
+    return MODEL_LABELS.get(str(model_version), str(model_version))
+
+
+def _label_prediction_methods(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty or "model_version" not in df.columns:
+        return df.copy()
+    out = df.copy()
+    out["model_version"] = out["model_version"].map(_pretty_model_name)
+    return out
+
+
 def _build_watchlist(
     predictions: pd.DataFrame,
     consensus: pd.DataFrame,
@@ -192,11 +211,12 @@ def _build_watchlist(
         .first()[["region", "model_version"]]
         .rename(columns={"model_version": "top_method"})
     )
+    top_method["top_method"] = top_method["top_method"].map(_pretty_model_name)
 
     high_risk_models = (
         latest_pred.loc[latest_pred["predicted_label"] == "high_risk"]
         .groupby("region")["model_version"]
-        .apply(lambda s: ", ".join(sorted(s.tolist())))
+        .apply(lambda s: ", ".join(sorted(_pretty_model_name(v) for v in s.tolist())))
         .reset_index(name="high_risk_models")
     )
 
@@ -369,13 +389,14 @@ follow_up = get_follow_up_rates(hours=min(hours, 48))
 diagnosis = get_diagnosis_temperature(hours=min(hours, 72))
 vaccination = get_vaccination_volume(hours=hours)
 prediction_run = _coerce_prediction_timestamp(get_latest_prediction_run())
-prediction_methods = get_prediction_methods()
+prediction_methods = [_pretty_model_name(m) for m in get_prediction_methods()]
 prediction_rows = _coerce_prediction_timestamp(
     get_prediction_rows(hours=min(hours, 72))
 )
 detector_consensus = _coerce_prediction_timestamp(
     get_detector_consensus(hours=min(hours, 72))
 )
+prediction_rows_labeled = _label_prediction_methods(prediction_rows)
 watchlist = _build_watchlist(prediction_rows, detector_consensus, regional)
 
 latest_bucket = _latest_bucket_start(
@@ -415,6 +436,15 @@ st.caption(
     "Charts follow `bucket_start`. A newly processed batch can refresh an older event-time hour, "
     "so freshness and event time are shown separately."
 )
+
+with st.expander("How To Read This Dashboard"):
+    st.markdown(
+        "- `Latest Event-Time Hour` is the newest hour of outbreak data represented in the charts.\n"
+        "- `Latest Processed Run` is when the analytics pipeline most recently refreshed the dashboard.\n"
+        "- `Regions in High Risk` counts regions where at least three of the four outbreak methods agree.\n"
+        "- `Detector Agreement` shows how many of the four methods flagged each region.\n"
+        "- The four outbreak methods shown here are Random Forest, Moving Average, EWMA, and Kalman Filter."
+    )
 
 
 if page == "Situation Room":
@@ -480,7 +510,7 @@ if page == "Situation Room":
                 column_labels={
                     "region": "Region",
                     "signal_status": "Status",
-                    "high_risk_method_count": "Methods Flagging",
+                    "high_risk_method_count": "Methods Flagging (0-4)",
                     "methods_reporting": "Methods Reporting",
                     "max_risk_score": "Max Risk",
                     "top_method": "Top Method",
@@ -523,6 +553,7 @@ elif page == "Regional Pulse":
     region_predictions = _coerce_prediction_timestamp(
         get_prediction_rows(hours=min(hours, 72), region=region)
     )
+    region_predictions_labeled = _label_prediction_methods(region_predictions)
     region_consensus = _coerce_prediction_timestamp(
         get_detector_consensus(hours=min(hours, 72), region=region)
     )
@@ -557,6 +588,11 @@ elif page == "Regional Pulse":
     if selected_row is not None:
         st.info(selected_row["narrative"])
 
+    st.caption(
+        "This page explains one region from three angles: disease severity, total case volume, "
+        "and outbreak-method agreement."
+    )
+
     left, right = st.columns(2)
     with left:
         line_regional_severity(regional_filtered)
@@ -566,7 +602,7 @@ elif page == "Regional Pulse":
     st.markdown("#### Outbreak Signal Trend")
     left, right = st.columns(2)
     with left:
-        line_detector_risk(region_predictions, title=f"Risk Score by Method: {region}")
+        line_detector_risk(region_predictions_labeled, title=f"Risk Score by Method: {region}")
     with right:
         line_detector_agreement(region_consensus, title=f"Detector Agreement Over Time: {region}")
 
@@ -594,7 +630,7 @@ elif page == "Regional Pulse":
 
     if not region_predictions.empty:
         with st.expander("Show detector rows for this region"):
-            region_view = region_predictions.sort_values(
+            region_view = region_predictions_labeled.sort_values(
                 ["bucket_start", "risk_score"], ascending=[False, False]
             ).copy()
             region_view["risk_score"] = region_view["risk_score"].round(3)
@@ -620,9 +656,14 @@ elif page == "Detector Signals":
     st.subheader("Detector Signals")
     detector_choices = ["ALL"] + prediction_methods
     detector = st.selectbox("Detection Method", detector_choices, index=0)
-    filtered_predictions = _coerce_prediction_timestamp(
-        get_prediction_rows(hours=min(hours, 72), model_version=detector)
+    detector_raw = next(
+        (raw for raw, label in MODEL_LABELS.items() if label == detector),
+        detector,
     )
+    filtered_predictions = _coerce_prediction_timestamp(
+        get_prediction_rows(hours=min(hours, 72), model_version=detector_raw)
+    )
+    filtered_predictions_labeled = _label_prediction_methods(filtered_predictions)
 
     if filtered_predictions.empty:
         st.info("No detector output is available for the selected method and time range.")
@@ -633,6 +674,10 @@ elif page == "Detector Signals":
             detector_text = "all methods"
         else:
             detector_text = detector
+
+        st.caption(
+            "This page compares the four outbreak methods directly. Higher scores mean a stronger outbreak signal for that region-hour."
+        )
 
         if not latest_bucket_consensus.empty:
             top_consensus = latest_bucket_consensus.sort_values(
@@ -646,20 +691,26 @@ elif page == "Detector Signals":
 
         left, right = st.columns(2)
         with left:
-            bar_detector_scores(filtered_predictions, title="Latest Detector Scores by Region")
+            bar_detector_scores(
+                filtered_predictions_labeled,
+                title="Latest Detector Scores by Region",
+            )
         with right:
-            bar_detector_agreement(detector_consensus, title="Latest Detector Agreement by Region")
+            bar_detector_agreement(
+                detector_consensus,
+                title="Detector Agreement by Region (Methods Flagging High Risk)",
+            )
         if detector == "ALL":
             trend_df = (
-                _coerce_bucket_start(filtered_predictions)
+                _coerce_bucket_start(filtered_predictions_labeled)
                 .groupby(["bucket_start", "model_version"], as_index=False)["risk_score"]
                 .mean()
             )
             line_detector_risk(trend_df, title="Average Detector Risk Score Trend")
         else:
-            line_detector_risk(filtered_predictions, title=f"Risk Score Trend: {detector}")
+            line_detector_risk(filtered_predictions_labeled, title=f"Risk Score Trend: {detector}")
 
-        latest_signal_rows = filtered_predictions.sort_values(
+        latest_signal_rows = filtered_predictions_labeled.sort_values(
             ["bucket_start", "risk_score"], ascending=[False, False]
         ).copy()
         latest_signal_rows["risk_score"] = latest_signal_rows["risk_score"].round(3)
@@ -706,6 +757,10 @@ elif page == "Operations Desk":
             )
         summary += "this is where surge planning should focus first."
         st.info(summary)
+
+    st.caption(
+        "This page highlights where hospital capacity and clinic follow-up demand are most concentrated in the latest bucket."
+    )
 
     left, right = st.columns([3, 2])
     with left:
@@ -769,6 +824,10 @@ elif page == "Clinical Context":
             f"with average temperature {_format_float(top_diag['avg_temperature_f'])}, "
             "this looks like the strongest clinical signal in the latest bucket."
         )
+
+    st.caption(
+        "This page explains what is happening clinically: which diagnoses are most active, how temperatures are trending, and how vaccination activity compares across regions."
+    )
 
     left, right = st.columns([3, 2])
     with left:

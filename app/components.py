@@ -12,6 +12,12 @@ PALETTE = [
     "#E76F51",
 ]
 
+EVENT_TYPE_LABELS = {
+    "symptom_report_volume": "Symptom Reports",
+    "hospital_admission_volume": "Hospital Admissions",
+    "clinic_visit_volume": "Clinic Visits",
+}
+
 
 def _normalize_bucket_start(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
@@ -94,12 +100,13 @@ def line_event_volume(df: pd.DataFrame):
         var_name="event_type",
         value_name="volume",
     )
+    chart_df["event_type"] = chart_df["event_type"].map(EVENT_TYPE_LABELS).fillna(chart_df["event_type"])
     fig = px.line(
         chart_df,
         x="bucket_start",
         y="volume",
         color="event_type",
-        title="Event Volume by Type (Layer B)",
+        title="Hourly Event Volume by Type",
         color_discrete_sequence=PALETTE,
     )
     _apply_time_axis(fig, chart_df)
@@ -303,7 +310,7 @@ def bar_detector_agreement(df: pd.DataFrame, title: str = "Detector Agreement by
             "Normal": "#4F959D",
         },
     )
-    fig.update_yaxes(title="Methods Flagging High Risk")
+    fig.update_yaxes(title="Methods Flagging High Risk (0-4)")
     _finalize_fig(fig, height=320, horizontal_legend=False)
     st.plotly_chart(fig, use_container_width=True)
 
@@ -322,7 +329,7 @@ def line_detector_agreement(df: pd.DataFrame, title: str = "Detector Agreement O
         title=title,
         color_discrete_sequence=PALETTE,
     )
-    fig.update_yaxes(title="Methods Flagging High Risk")
+    fig.update_yaxes(title="Methods Flagging High Risk (0-4)")
     _apply_time_axis(fig, plot_df)
     _finalize_fig(fig, height=300)
     st.plotly_chart(fig, use_container_width=True)
