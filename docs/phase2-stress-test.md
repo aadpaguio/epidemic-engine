@@ -2,6 +2,8 @@
 
 This document describes how we stress-test the full path **Kafka (raw) → Phase 1 Tekton → typed topics → Spark batch ETL → TimescaleDB**, what we measure, and how to reproduce runs. Fill in **Results** (below) after each formal test run.
 
+**Historical note:** these stress runs were executed against the **older Spark input path** (Spark reading **typed Kafka topics** directly). They **did not** use the newer **typed topics → `raw_typed_events` → Spark (`FEATURE_SOURCE_MODE=raw_db`)** sequencing described in [`continuous-collection-plan.md`](continuous-collection-plan.md). The **Timescale outputs are still `feature_*_hourly` → Layer B views**; only the **upstream staging/read path** differs.
+
 **Related:** raw loadgen details in [`load-test-raw-kafka.md`](load-test-raw-kafka.md), Spark job ops in [`../spark/README.md`](../spark/README.md).
 
 ---
