@@ -35,11 +35,6 @@ from sql_queries import (
 
 
 st.set_page_config(page_title="Epidemic Engine Dashboard", layout="wide")
-st.title("Epidemic Engine: Outbreak Situation Room")
-st.caption(
-    "Final operations dashboard over TimescaleDB analytics and outbreak signals. "
-    "Trend visuals are ordered by event time."
-)
 
 MODEL_LABELS = {
     "v1": "Random Forest",
@@ -126,6 +121,26 @@ def _latest_bucket_rows(df: pd.DataFrame) -> pd.DataFrame:
     return out.loc[out["bucket_start"] == latest_bucket].copy()
 
 
+def _latest_processed_rows(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df.iloc[0:0].copy()
+    out = _coerce_bucket_start(df)
+    ts_col = None
+    if "run_timestamp" in out.columns:
+        ts_col = "run_timestamp"
+    elif "as_of_run_timestamp" in out.columns:
+        ts_col = "as_of_run_timestamp"
+    elif "prediction_timestamp" in out.columns:
+        ts_col = "prediction_timestamp"
+    if ts_col is None:
+        return out
+    out[ts_col] = pd.to_datetime(out[ts_col], utc=True, errors="coerce")
+    latest_ts = out[ts_col].dropna().max()
+    if pd.isna(latest_ts):
+        return out.iloc[0:0].copy()
+    return out.loc[out[ts_col] == latest_ts].copy()
+
+
 def _parse_batch_id(batch_id: str):
     m = re.match(
         r"^eventtime-(\d{4}-\d{2}-\d{2}T\d{2})-(\d{8}T\d{6}Z)$",
@@ -156,6 +171,16 @@ def _format_pct(value) -> str:
     if value is None or pd.isna(value):
         return "N/A"
     return f"{float(value):.1%}"
+
+
+def _format_duration(delta: pd.Timedelta | None) -> str:
+    if delta is None or pd.isna(delta):
+        return "N/A"
+    total_minutes = int(delta.total_seconds() // 60)
+    hours, minutes = divmod(total_minutes, 60)
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
 
 
 def _pretty_model_name(model_version: str) -> str:
@@ -311,7 +336,7 @@ def _build_detector_briefing(
                 "Based on the latest detector run, no region is currently showing a strong multi-method outbreak signal."
             )
 
-    latest_hospital = _latest_bucket_rows(hospital_pressure)
+    latest_hospital = _latest_processed_rows(hospital_pressure)
     if not latest_hospital.empty:
         top_hospital = latest_hospital.sort_values(
             "capacity_pressure_index", ascending=False, na_position="last"
@@ -322,7 +347,7 @@ def _build_detector_briefing(
             "this is the first operations hotspot to review."
         )
 
-    latest_diagnosis = _latest_bucket_rows(diagnosis)
+    latest_diagnosis = _latest_processed_rows(diagnosis)
     if not latest_diagnosis.empty:
         top_diagnosis = latest_diagnosis.sort_values(
             "diagnosis_visit_count", ascending=False, na_position="last"
@@ -338,7 +363,7 @@ def _build_detector_briefing(
 
 
 def _latest_total_events(event_volume: pd.DataFrame) -> int:
-    latest = _latest_bucket_rows(event_volume)
+    latest = _latest_processed_rows(event_volume)
     if latest.empty:
         return 0
     row = latest.sort_values("bucket_start").iloc[-1]
@@ -348,7 +373,7 @@ def _latest_total_events(event_volume: pd.DataFrame) -> int:
 
 
 def _latest_vaccination_total(vaccination: pd.DataFrame) -> int:
-    latest = _latest_bucket_rows(vaccination)
+    latest = _latest_processed_rows(vaccination)
     if latest.empty:
         return 0
     return int(latest["vaccination_count"].fillna(0).sum())
@@ -359,6 +384,62 @@ def _display_table(df: pd.DataFrame, *, columns: list[str], column_labels: dict[
     if column_labels:
         view = view.rename(columns=column_labels)
     st.dataframe(view, use_container_width=True, hide_index=True)
+
+
+def _source_metadata(df: pd.DataFrame) -> tuple[pd.Timestamp | None, str | None]:
+    if df.empty:
+        return None, None
+    out = df.copy()
+    ts_col = None
+    id_col = None
+    if "run_timestamp" in out.columns:
+        ts_col = "run_timestamp"
+        id_col = "batch_id" if "batch_id" in out.columns else None
+    elif "as_of_run_timestamp" in out.columns:
+        ts_col = "as_of_run_timestamp"
+    elif "prediction_timestamp" in out.columns:
+        ts_col = "prediction_timestamp"
+        id_col = "run_id" if "run_id" in out.columns else None
+    if ts_col is None:
+        return None, None
+    out[ts_col] = pd.to_datetime(out[ts_col], utc=True, errors="coerce")
+    latest_ts = out[ts_col].dropna().max()
+    if pd.isna(latest_ts):
+        return None, None
+    latest_rows = out.loc[out[ts_col] == latest_ts]
+    identifier = None
+    if id_col and id_col in latest_rows.columns:
+        values = latest_rows[id_col].dropna().astype(str)
+        if not values.empty:
+            identifier = values.iloc[0]
+    return latest_ts, identifier
+
+
+def _render_source_caption(
+    label: str,
+    df: pd.DataFrame,
+    *,
+    id_label: str | None = None,
+    fallback: str = "No source metadata available.",
+):
+    ts, identifier = _source_metadata(df)
+    if ts is None:
+        st.caption(f"{label}: {fallback}")
+        return
+    parts = [f"{label}: {_format_ts(ts)}"]
+    if identifier and id_label:
+        parts.append(f"{id_label}: {identifier}")
+    st.caption(" | ".join(parts))
+
+
+def _latest_detector_snapshot(predictions: pd.DataFrame) -> pd.DataFrame:
+    if predictions.empty:
+        return predictions.copy()
+    out = _coerce_bucket_start(_coerce_prediction_timestamp(predictions))
+    latest_bucket = out["bucket_start"].dropna().max()
+    if pd.isna(latest_bucket):
+        return out.iloc[0:0].copy()
+    return out.loc[out["bucket_start"] == latest_bucket].copy()
 
 
 with st.sidebar:
@@ -376,6 +457,12 @@ with st.sidebar:
     hours = st.slider("Time Window (hours)", min_value=6, max_value=168, value=72, step=6)
     if st.button("Refresh Data"):
         st.cache_data.clear()
+
+st.title(f"Epidemic Engine: {page}")
+st.caption(
+    "Final operations dashboard over TimescaleDB analytics and outbreak signals. "
+    "Trend visuals are ordered by event time."
+)
 
 
 if not render_connection_status():
@@ -450,7 +537,7 @@ with st.expander("How To Read This Dashboard"):
 if page == "Situation Room":
     latest_events = _latest_total_events(event_volume)
     regions_high_risk = 0 if watchlist.empty else int((watchlist["signal_status"] == "High Risk").sum())
-    latest_hospitals = _latest_bucket_rows(hospital_pressure)
+    latest_hospitals = _latest_processed_rows(hospital_pressure)
     max_pressure = None if latest_hospitals.empty else latest_hospitals["capacity_pressure_index"].dropna().max()
     top_region_name = "None"
     top_region_signal = "No active signal"
@@ -479,11 +566,13 @@ if page == "Situation Room":
         st.markdown(f"- {line}")
 
     st.subheader("Event Volume by Type")
+    _render_source_caption("Event volume source", event_volume)
     line_event_volume(event_volume)
 
     left, right = st.columns([1, 1])
     with left:
         st.subheader("Detector Agreement")
+        _render_source_caption("Detector source", prediction_rows, id_label="Run ID")
         bar_detector_agreement(detector_consensus)
     with right:
         st.subheader("Regional Watchlist")
@@ -537,7 +626,6 @@ if page == "Situation Room":
                 )
 
 elif page == "Regional Pulse":
-    st.subheader("Regional Pulse")
     region_candidates = sorted(
         {
             *get_regions(),
@@ -560,7 +648,7 @@ elif page == "Regional Pulse":
     region_watch = watchlist.loc[watchlist["region"] == region].head(1)
     selected_row = region_watch.iloc[0] if not region_watch.empty else None
 
-    latest_region = _latest_bucket_rows(regional_filtered)
+    latest_region = _latest_processed_rows(regional_filtered)
     latest_region_cases = None
     latest_region_severity = None
     if not latest_region.empty:
@@ -592,6 +680,8 @@ elif page == "Regional Pulse":
         "This page explains one region from three angles: disease severity, total case volume, "
         "and outbreak-method agreement."
     )
+    _render_source_caption("Regional analytics source", regional_filtered, id_label="Batch")
+    _render_source_caption("Regional detector source", region_predictions, id_label="Run ID")
 
     left, right = st.columns(2)
     with left:
@@ -607,11 +697,12 @@ elif page == "Regional Pulse":
         line_detector_agreement(region_consensus, title=f"Detector Agreement Over Time: {region}")
 
     st.markdown("#### Vaccination Context")
+    _render_source_caption("Vaccination source", latest_region_vacc, id_label="Batch")
     left, right = st.columns([3, 2])
     with left:
         line_vaccination_volume(latest_region_vacc)
     with right:
-        latest_region_vacc_rows = _latest_bucket_rows(latest_region_vacc).sort_values(
+        latest_region_vacc_rows = _latest_processed_rows(latest_region_vacc).sort_values(
             "vaccination_count", ascending=False, na_position="last"
         )
         if latest_region_vacc_rows.empty:
@@ -653,7 +744,6 @@ elif page == "Regional Pulse":
             )
 
 elif page == "Detector Signals":
-    st.subheader("Detector Signals")
     detector_choices = ["ALL"] + prediction_methods
     detector = st.selectbox("Detection Method", detector_choices, index=0)
     detector_raw = next(
@@ -669,6 +759,7 @@ elif page == "Detector Signals":
         st.info("No detector output is available for the selected method and time range.")
     else:
         latest_bucket_consensus = _latest_bucket_rows(detector_consensus)
+        latest_detector_rows = _latest_detector_snapshot(filtered_predictions_labeled)
 
         if detector == "ALL":
             detector_text = "all methods"
@@ -678,6 +769,7 @@ elif page == "Detector Signals":
         st.caption(
             "This page compares the four outbreak methods directly. Higher scores mean a stronger outbreak signal for that region-hour."
         )
+        _render_source_caption("Detector source", filtered_predictions, id_label="Run ID")
 
         if not latest_bucket_consensus.empty:
             top_consensus = latest_bucket_consensus.sort_values(
@@ -688,6 +780,29 @@ elif page == "Detector Signals":
                 f"{top_consensus['region']} has the strongest signal under {detector_text}, "
                 f"with {int(top_consensus['high_risk_method_count'])} methods flagging high risk."
             )
+
+        latest_regions_flagged = 0
+        latest_avg_risk = None
+        if not latest_detector_rows.empty:
+            latest_regions_flagged = int(
+                latest_detector_rows.loc[
+                    latest_detector_rows["predicted_label"] == "high_risk", "region"
+                ].nunique()
+            )
+            latest_avg_risk = latest_detector_rows["risk_score"].mean()
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric(
+            "Latest Bucket Reviewed",
+            _format_ts(latest_detector_rows["bucket_start"].max()).replace(" UTC", "")
+            if not latest_detector_rows.empty
+            else "N/A",
+        )
+        col2.metric("Regions Flagged In Latest Bucket", f"{latest_regions_flagged}")
+        col3.metric(
+            "Average Latest Risk Score",
+            _format_float(latest_avg_risk),
+        )
 
         left, right = st.columns(2)
         with left:
@@ -710,8 +825,8 @@ elif page == "Detector Signals":
         else:
             line_detector_risk(filtered_predictions_labeled, title=f"Risk Score Trend: {detector}")
 
-        latest_signal_rows = filtered_predictions_labeled.sort_values(
-            ["bucket_start", "risk_score"], ascending=[False, False]
+        latest_signal_rows = latest_detector_rows.sort_values(
+            ["risk_score", "region"], ascending=[False, True]
         ).copy()
         latest_signal_rows["risk_score"] = latest_signal_rows["risk_score"].round(3)
         _display_table(
@@ -735,11 +850,10 @@ elif page == "Detector Signals":
         )
 
 elif page == "Operations Desk":
-    st.subheader("Operations Desk")
-    latest_hospital_rows = _latest_bucket_rows(hospital_pressure).sort_values(
+    latest_hospital_rows = _latest_processed_rows(hospital_pressure).sort_values(
         "capacity_pressure_index", ascending=False, na_position="last"
     )
-    latest_follow_rows = _latest_bucket_rows(follow_up).sort_values(
+    latest_follow_rows = _latest_processed_rows(follow_up).sort_values(
         "follow_up_rate", ascending=False, na_position="last"
     )
 
@@ -761,6 +875,8 @@ elif page == "Operations Desk":
     st.caption(
         "This page highlights where hospital capacity and clinic follow-up demand are most concentrated in the latest bucket."
     )
+    _render_source_caption("Hospital operations source", hospital_pressure, id_label="Batch")
+    _render_source_caption("Clinic follow-up source", follow_up, id_label="Batch")
 
     left, right = st.columns([3, 2])
     with left:
@@ -808,11 +924,10 @@ elif page == "Operations Desk":
         )
 
 elif page == "Clinical Context":
-    st.subheader("Clinical Context")
-    latest_diag_rows = _latest_bucket_rows(diagnosis).sort_values(
+    latest_diag_rows = _latest_processed_rows(diagnosis).sort_values(
         "diagnosis_visit_count", ascending=False, na_position="last"
     )
-    latest_vaccination_rows = _latest_bucket_rows(vaccination).sort_values(
+    latest_vaccination_rows = _latest_processed_rows(vaccination).sort_values(
         "vaccination_count", ascending=False, na_position="last"
     )
 
@@ -828,6 +943,8 @@ elif page == "Clinical Context":
     st.caption(
         "This page explains what is happening clinically: which diagnoses are most active, how temperatures are trending, and how vaccination activity compares across regions."
     )
+    _render_source_caption("Diagnosis source", diagnosis, id_label="Batch")
+    _render_source_caption("Vaccination source", vaccination, id_label="Batch")
 
     left, right = st.columns([3, 2])
     with left:

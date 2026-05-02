@@ -26,6 +26,26 @@ def _normalize_bucket_start(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _latest_processed_rows(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df.iloc[0:0].copy()
+    out = _normalize_bucket_start(df)
+    ts_col = None
+    if "run_timestamp" in out.columns:
+        ts_col = "run_timestamp"
+    elif "as_of_run_timestamp" in out.columns:
+        ts_col = "as_of_run_timestamp"
+    elif "prediction_timestamp" in out.columns:
+        ts_col = "prediction_timestamp"
+    if ts_col is None:
+        return out
+    out[ts_col] = pd.to_datetime(out[ts_col], utc=True, errors="coerce")
+    latest_ts = out[ts_col].dropna().max()
+    if pd.isna(latest_ts):
+        return out.iloc[0:0].copy()
+    return out.loc[out[ts_col] == latest_ts].copy()
+
+
 def _apply_time_axis(fig, df: pd.DataFrame):
     # Show only real hourly buckets on the x-axis (no interpolated ticks).
     if "bucket_start" not in df.columns or df.empty:
@@ -153,12 +173,8 @@ def bar_capacity_pressure(df: pd.DataFrame, top_n: int = 10):
     if df.empty:
         st.info("No hospital capacity data available.")
         return
-    df = _normalize_bucket_start(df)
-    latest = (
-        df.sort_values("bucket_start")
-        .groupby("hospital_id", as_index=False)
-        .tail(1)
-        .sort_values("capacity_pressure_index", ascending=False)
+    latest = _latest_processed_rows(df).sort_values(
+        "capacity_pressure_index", ascending=False, na_position="last"
     )
     chart_df = latest.head(top_n).copy()
     fig = px.bar(
@@ -178,7 +194,7 @@ def line_follow_up_rates(df: pd.DataFrame, top_n: int = 8):
         st.info("No follow-up data available.")
         return
     df = _normalize_bucket_start(df)
-    latest = df.sort_values("bucket_start").groupby("clinic_id", as_index=False).tail(1)
+    latest = _latest_processed_rows(df)
     top_clinics = latest.sort_values(
         ["follow_up_rate", "visit_count"], ascending=[False, False]
     )["clinic_id"].head(top_n)
@@ -268,9 +284,8 @@ def bar_detector_scores(df: pd.DataFrame, title: str = "Latest Detector Scores b
     if df.empty:
         st.info("No detector scores are available for the selected range.")
         return
-    plot_df = df.copy()
-    if "bucket_start" in plot_df.columns:
-        plot_df = _normalize_bucket_start(plot_df)
+    plot_df = _latest_processed_rows(df)
+    if "bucket_start" in plot_df.columns and not plot_df.empty:
         latest_bucket = plot_df["bucket_start"].max()
         plot_df = plot_df.loc[plot_df["bucket_start"] == latest_bucket].copy()
     fig = px.bar(
@@ -291,9 +306,8 @@ def bar_detector_agreement(df: pd.DataFrame, title: str = "Detector Agreement by
     if df.empty:
         st.info("No detector agreement rows are available.")
         return
-    plot_df = df.copy()
-    if "bucket_start" in plot_df.columns:
-        plot_df = _normalize_bucket_start(plot_df)
+    plot_df = _latest_processed_rows(df)
+    if "bucket_start" in plot_df.columns and not plot_df.empty:
         latest_bucket = plot_df["bucket_start"].max()
         plot_df = plot_df.loc[plot_df["bucket_start"] == latest_bucket].copy()
     fig = px.bar(

@@ -9,7 +9,7 @@ def _query_df(sql: str, params=None) -> pd.DataFrame:
         return pd.read_sql_query(sql, conn, params=params)
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_event_volume(hours: int = 72) -> pd.DataFrame:
     sql = """
         SELECT
@@ -25,7 +25,7 @@ def get_event_volume(hours: int = 72) -> pd.DataFrame:
     return _query_df(sql, params=(hours,))
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_regional_trends(hours: int = 72, region: str = "ALL") -> pd.DataFrame:
     sql = """
         SELECT
@@ -43,7 +43,7 @@ def get_regional_trends(hours: int = 72, region: str = "ALL") -> pd.DataFrame:
     return _query_df(sql, params=(hours, region, region))
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_hospital_pressure(hours: int = 24) -> pd.DataFrame:
     sql = """
         SELECT
@@ -61,7 +61,7 @@ def get_hospital_pressure(hours: int = 24) -> pd.DataFrame:
     return _query_df(sql, params=(hours,))
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_follow_up_rates(hours: int = 24) -> pd.DataFrame:
     sql = """
         SELECT
@@ -79,7 +79,7 @@ def get_follow_up_rates(hours: int = 24) -> pd.DataFrame:
     return _query_df(sql, params=(hours,))
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_diagnosis_temperature(hours: int = 48) -> pd.DataFrame:
     sql = """
         SELECT
@@ -97,7 +97,7 @@ def get_diagnosis_temperature(hours: int = 48) -> pd.DataFrame:
     return _query_df(sql, params=(hours,))
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_vaccination_volume(hours: int = 72) -> pd.DataFrame:
     sql = """
         SELECT
@@ -126,7 +126,7 @@ def get_regions() -> list[str]:
     return df["region"].tolist()
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_latest_prediction_run() -> pd.DataFrame:
     sql = """
         SELECT
@@ -140,7 +140,7 @@ def get_latest_prediction_run() -> pd.DataFrame:
     return _query_df(sql)
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_prediction_methods() -> list[str]:
     sql = """
         WITH latest AS (
@@ -160,7 +160,7 @@ def get_prediction_methods() -> list[str]:
     return df["model_version"].tolist()
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_prediction_rows(
     hours: int = 24,
     region: str = "ALL",
@@ -192,7 +192,7 @@ def get_prediction_rows(
     return _query_df(sql, params=(hours, region, region, model_version, model_version))
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)
 def get_detector_consensus(hours: int = 24, region: str = "ALL") -> pd.DataFrame:
     sql = """
         WITH latest AS (
