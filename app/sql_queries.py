@@ -115,6 +115,34 @@ def get_vaccination_volume(hours: int = 72) -> pd.DataFrame:
     return _query_df(sql, params=(hours,))
 
 
+@st.cache_data(ttl=60)
+def get_alert_events(limit: int = 300) -> pd.DataFrame:
+    """Operational alerts written by epidemic-alert-service into alert_events."""
+    sql = """
+        SELECT
+            alert_key,
+            created_at,
+            updated_at,
+            alert_type,
+            severity,
+            region,
+            bucket_start,
+            model_versions,
+            max_risk_score,
+            run_id,
+            status,
+            message,
+            raw_payload
+        FROM alert_events
+        ORDER BY updated_at DESC NULLS LAST
+        LIMIT %s;
+    """
+    try:
+        return _query_df(sql, params=(limit,))
+    except Exception:
+        return pd.DataFrame()
+
+
 @st.cache_data(ttl=300)
 def get_regions() -> list[str]:
     sql = """

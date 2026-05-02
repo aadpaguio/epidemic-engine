@@ -1,0 +1,10 @@
+# Reference ConfigMap values for epidemic-alert-service (see alert-deployment.yaml).
+# Apply thresholds with: oc apply -f alert/alert-deployment.yaml
+#
+# ALERT_POLL_SECONDS: "300"
+# ALERT_COOLDOWN_SECONDS: "1800"
+# PREDICTION_STALE_MINUTES: "180"
+# FEATURE_STALE_HOURS: "12"
+# OUTBREAK_LOOKBACK_HOURS: "24"
+# MIN_CONFIRMING_MODELS: "2"
+# OUTBREAK_ALERT_SINGLE_MODEL: "0"

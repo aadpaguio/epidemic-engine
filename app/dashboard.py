@@ -14,6 +14,7 @@ from components import (
 )
 from db import render_connection_status
 from sql_queries import (
+    get_alert_events,
     get_diagnosis_temperature,
     get_event_volume,
     get_follow_up_rates,
@@ -101,6 +102,7 @@ with st.sidebar:
             "Regional Trends",
             "Hospital & Clinic Operations",
             "Clinical Signals",
+            "Alerts",
         ],
     )
     hours = st.slider("Time Window (hours)", min_value=6, max_value=168, value=72, step=6)
@@ -191,6 +193,44 @@ elif page == "Hospital & Clinic Operations":
     st.subheader("Hospital & Clinic Operations")
     bar_capacity_pressure(hospital_pressure)
     line_follow_up_rates(follow_up)
+
+elif page == "Alerts":
+    st.subheader("Operational Alerts (Phase 3)")
+    st.caption(
+        "Fed by `epidemic-alert-service` rows in `alert_events`. "
+        "See docs/alerting-guide.md for rules and troubleshooting."
+    )
+    alerts = get_alert_events(limit=500)
+    if alerts.empty:
+        st.info("No alert rows yet — deploy the alert service or widen thresholds.")
+    else:
+        severities = sorted(alerts["severity"].dropna().unique().tolist())
+        types = sorted(alerts["alert_type"].dropna().unique().tolist())
+        col_a, col_b = st.columns(2)
+        with col_a:
+            sev_pick = st.multiselect("Severity", severities, default=severities)
+        with col_b:
+            type_pick = st.multiselect("Alert type", types, default=types)
+        filtered = alerts
+        if sev_pick:
+            filtered = filtered[filtered["severity"].isin(sev_pick)]
+        if type_pick:
+            filtered = filtered[filtered["alert_type"].isin(type_pick)]
+        display_cols = [
+            "updated_at",
+            "severity",
+            "alert_type",
+            "region",
+            "bucket_start",
+            "model_versions",
+            "max_risk_score",
+            "run_id",
+            "message",
+            "status",
+            "alert_key",
+        ]
+        show = filtered[[c for c in display_cols if c in filtered.columns]]
+        st.dataframe(show, use_container_width=True, hide_index=True)
 
 else:
     st.subheader("Clinical Signals")
