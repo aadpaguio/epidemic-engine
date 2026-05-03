@@ -14,6 +14,7 @@ DB_USER="${DB_USER:-spark_writer}"
 MAX_DIRTY_WINDOWS_PER_RUN="${MAX_DIRTY_WINDOWS_PER_RUN:-6}"
 REFRESH_SLEEP_SEC="${REFRESH_SLEEP_SEC:-60}"
 FEATURE_SOURCE_MODE="${FEATURE_SOURCE_MODE:-raw_db}"
+SPARK_LOG_TAIL="${SPARK_LOG_TAIL:-600}"
 LOG_DIR="${LOG_DIR:-logs/runtime}"
 LOG_FILE="${LOG_FILE:-}"
 STOP_REQUESTED=0
@@ -109,9 +110,8 @@ launch_spark_range() {
   log "[spark] launched refresh for ${window_start} -> ${window_end} (batch_id=${batch_id})"
   local wait_rc=0
   oc wait -n "$NAMESPACE" --for=condition=complete "job/${SPARK_JOB_NAME}" --timeout="${SPARK_TIMEOUT_SEC}s" || wait_rc=$?
-  log "[spark] analytics logs for ${SPARK_JOB_NAME}"
-  oc logs "job/${SPARK_JOB_NAME}" -n "$NAMESPACE" --tail=250 2>&1 \
-    | awk '/\[ANALYTICS\]|Traceback|ERROR|Error|Exception|FailedCreate|ExceededResourceQuota/ {print}' || true
+  log "[spark] full driver logs job/${SPARK_JOB_NAME} (tail=${SPARK_LOG_TAIL})"
+  oc logs "job/${SPARK_JOB_NAME}" -n "$NAMESPACE" --tail="${SPARK_LOG_TAIL}" 2>&1 || true
   return "$wait_rc"
 }
 
