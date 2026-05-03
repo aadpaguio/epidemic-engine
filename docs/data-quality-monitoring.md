@@ -23,7 +23,8 @@ This feature maps to Phase 3 **Category D — Data Quality & Monitoring**: profi
 
 ## Operations
 
-- **Apply DDL / view**: refresh the database from current `infra/database-init.sql`, or for a minimal cluster touch use [`scripts/apply-raw-landing-ddl.sh`](../scripts/apply-raw-landing-ddl.sh) (includes the view).  
+- **Apply only the DQ view on a live cluster** (no full init, no DB restart — light on quota): [`scripts/apply-vw-data-quality-hourly.sh`](../scripts/apply-vw-data-quality-hourly.sh) runs [`infra/sql/vw_data_quality_hourly.sql`](../infra/sql/vw_data_quality_hourly.sql) via `oc exec` into `timescaledb-0` using `epidemic-db-spark` credentials.
+- **Full DDL / fresh init**: refresh the database from current `infra/database-init.sql`, or for a minimal raw-landing touch use [`scripts/apply-raw-landing-ddl.sh`](../scripts/apply-raw-landing-ddl.sh) (includes the view).  
 - **Dashboard**: same as [`docs/visualization-guide.md`](visualization-guide.md); open the **Data Quality** page after port-forwarding the DB.  
 - **Tune thresholds**: edit `thresholds.json` (or the mounted ConfigMap) and restart `epidemic-alert-service` if needed.
 
