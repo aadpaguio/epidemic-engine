@@ -166,14 +166,30 @@ with severity / type / status filters.
 
 ## Build and deploy (OpenShift)
 
+**Option A — local container engine (podman/docker)** — same image URL your `Deployment` references:
+
 ```bash
 podman build -f alert/Dockerfile \
   -t image-registry.openshift-image-registry.svc:5000/<project>/epidemic-alert-service:latest .
 podman push image-registry.openshift-image-registry.svc:5000/<project>/epidemic-alert-service:latest
+```
+
+**Option B — binary build on the cluster** (matches [`infra/buildconfig-outbreak-predict-binary.yaml`](../infra/buildconfig-outbreak-predict-binary.yaml); no Git credentials needed). Run from **repository root** so `alert/Dockerfile` `COPY` paths work:
+
+```bash
+oc apply -f infra/buildconfig-epidemic-alert-service-binary.yaml
+oc start-build epidemic-alert-service --from-dir=. --follow
+```
+
+Then apply manifests (ConfigMaps + Deployment) or restart to pick up a new image:
+
+```bash
 oc apply -f alert/alert-deployment.yaml
 oc rollout restart deploy/epidemic-alert-service
 oc logs deploy/epidemic-alert-service -f
 ```
+
+If someone previously ran `oc new-build` with Git source for this app, delete or replace that `BuildConfig` so it stays **Binary-only**—otherwise OpenShift may try to clone GitHub during builds.
 
 Required Secrets:
 

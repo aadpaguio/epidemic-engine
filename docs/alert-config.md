@@ -3,6 +3,10 @@
 This is the operational quick-reference for `epidemic-alert-service`.
 For architecture and rule semantics see [`docs/alerting-guide.md`](alerting-guide.md).
 
+## Building the container image
+
+The `Deployment` pulls `epidemic-alert-service:latest` from your namespace’s image registry. Build either with **podman** locally or a **binary OpenShift build** (see [`infra/buildconfig-epidemic-alert-service-binary.yaml`](../infra/buildconfig-epidemic-alert-service-binary.yaml) and [`docs/alerting-guide.md`](alerting-guide.md) § Build and deploy).
+
 ## Where settings live
 
 | Setting | Source | How to change |
