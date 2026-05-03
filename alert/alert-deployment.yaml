@@ -58,6 +58,28 @@ data:
         "severity": "critical",
         "min_windows_breaching": 2,
         "cooldown_seconds": 1800
+      },
+      "high_landed_data_quality_issue_rate": {
+        "metric": "data_quality_issue_pct",
+        "windows": [
+          {"name": "1h", "minutes": 60, "threshold": 25.0},
+          {"name": "6h", "minutes": 360, "threshold": 20.0},
+          {"name": "24h", "minutes": 1440, "threshold": 15.0}
+        ],
+        "severity": "warning",
+        "min_windows_breaching": 2,
+        "cooldown_seconds": 3600
+      },
+      "high_missing_severity_rate": {
+        "metric": "missing_severity_pct",
+        "windows": [
+          {"name": "1h", "minutes": 60, "threshold": 30.0},
+          {"name": "6h", "minutes": 360, "threshold": 25.0},
+          {"name": "24h", "minutes": 1440, "threshold": 20.0}
+        ],
+        "severity": "warning",
+        "min_windows_breaching": 2,
+        "cooldown_seconds": 3600
       }
     }
 ---

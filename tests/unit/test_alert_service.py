@@ -200,6 +200,54 @@ def test_query_avg_severity_returns_none_when_no_rows():
     assert alert_service.query_avg_severity(conn, 60) is None
 
 
+def test_query_data_quality_issue_pct_returns_float():
+    conn = FakeConn()
+    conn.add_response("count(*) filter", (7.25,))
+    v = alert_service.query_data_quality_issue_pct(conn, 60)
+    assert v == pytest.approx(7.25)
+
+
+def test_query_data_quality_issue_pct_returns_none_when_empty():
+    conn = FakeConn()
+    conn.add_response("count(*) filter", (None,))
+    assert alert_service.query_data_quality_issue_pct(conn, 5) is None
+
+
+def test_query_missing_severity_pct_returns_float():
+    conn = FakeConn()
+    conn.add_response("not (payload_json ? 'severity')", (12.0,))
+    v = alert_service.query_missing_severity_pct(conn, 30)
+    assert v == pytest.approx(12.0)
+
+
+def test_measure_data_quality_issue_pct_breach(monkeypatch):
+    def fake(_conn, minutes: int) -> float | None:
+        return {60: 30.0, 360: 10.0, 1440: 5.0}.get(minutes)
+
+    monkeypatch.setattr(alert_service, "query_data_quality_issue_pct", fake)
+    conn = FakeConn()
+    windows = [
+        {"name": "1h", "minutes": 60, "threshold": 25.0},
+        {"name": "6h", "minutes": 360, "threshold": 20.0},
+        {"name": "24h", "minutes": 1440, "threshold": 15.0},
+    ]
+    m = alert_service._measure_data_quality_issue_pct(conn, windows)
+    assert m[0]["breach"] is True
+    assert m[1]["breach"] is False
+    assert m[2]["breach"] is False
+
+
+def test_format_metric_message_handles_none_value():
+    result = {
+        "measurements": [
+            {"window": "1h", "value": None, "threshold": 10.0, "breach": True},
+        ],
+        "n_breaches": 1,
+    }
+    msg = alert_service._format_metric_message("dq_demo", result)
+    assert "N/A" in msg
+
+
 # ---------------------------------------------------------------------------
 # emit_alert + cooldown + escalation
 # ---------------------------------------------------------------------------
