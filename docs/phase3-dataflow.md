@@ -29,5 +29,8 @@ TimescaleDB Layer B SQL views
   ↓
 Phase 3 consumers:
   - Dashboard / visualization
-  - Alerting service
+  - Alerting service (`epidemic-alert-service`):
+      - reads `raw_typed_events`, `ml_outbreak_predictions`, `vw_region_hourly_ml_features_windowed`
+      - writes `alert_events` and structured `[ALERT]` JSON logs
+      - posts to Slack `#epidemic-alerts` via incoming webhook
   - Outbreak prediction model
