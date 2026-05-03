@@ -105,7 +105,7 @@ See [`docs/visualization-guide.md`](docs/visualization-guide.md).
 - **Architecture (consolidated):** [`docs/architecture.md`](docs/architecture.md)
 - **Phase 3 flow (short):** [`docs/phase3-dataflow.md`](docs/phase3-dataflow.md)
 - **Timed continuous collection / raw landing runbook:** [`docs/runbook.md`](docs/runbook.md)
-- **Testing / smoke expectations:** [`docs/testing-plan.md`](docs/testing-plan.md) — run everything with [`scripts/run-test-suite.sh`](scripts/run-test-suite.sh)
+- **Testing Suite:** [`docs/testing-plan.md`](docs/testing-suite.md) — run everything with [`scripts/run-test-suite.sh`](scripts/run-test-suite.sh)
 - **Spark ETL deploy + env vars:** [`spark/README.md`](spark/README.md)
 - **ML guide:** [`docs/ml-model-guide.md`](docs/ml-model-guide.md)
 - **Alerting guide:** [`docs/alerting-guide.md`](docs/alerting-guide.md)
@@ -118,8 +118,6 @@ See [`docs/visualization-guide.md`](docs/visualization-guide.md).
 ---
 
 ## Phase status (high level)
-
-This repo contains material beyond Phase 1 alone (Spark ETL, Timescale DDL, dashboard, ML, alerting). Treat phase checklists in coursework docs as the source of truth for grading scope, but **do not** assume this repository is “Phase 1 only”.
 
 - **Phase 1:** Tekton ingestion pipeline (`tekton/`)
 - **Phase 2:** Spark hourly facts + Timescale Layer A/B DDL (`spark/`, `infra/database-init.sql`, `infra/database-deployment.yaml`)
