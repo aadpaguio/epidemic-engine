@@ -926,7 +926,7 @@ elif page == "Operations Desk":
         )
 
 elif page == "Alerts":
-    st.subheader("Operational Alerts (Phase 3)")
+    st.subheader("Operational Alerts")
     st.caption(
         "Fed by `epidemic-alert-service` rows in `alert_events`. "
         "See docs/alerting-guide.md for rules and troubleshooting."
