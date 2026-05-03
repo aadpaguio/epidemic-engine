@@ -254,3 +254,29 @@ def get_detector_consensus(hours: int = 24, region: str = "ALL") -> pd.DataFrame
         ORDER BY bucket_start, region;
     """
     return _query_df(sql, params=(hours, region, region))
+
+
+@st.cache_data(ttl=30)
+def get_data_quality_hourly(hours: int = 168) -> pd.DataFrame:
+    """Hourly landed-event completeness from ``vw_data_quality_hourly`` (see database-init)."""
+    sql = """
+        SELECT
+            bucket_start,
+            total_events,
+            missing_event_type,
+            missing_event_ts,
+            missing_region,
+            missing_severity,
+            invalid_severity,
+            quality_issue_count,
+            quality_issue_pct,
+            missing_severity_pct
+        FROM vw_data_quality_hourly
+        WHERE bucket_start >= now() - (%s || ' hours')::interval
+        ORDER BY bucket_start;
+    """
+    try:
+        return _query_df(sql, params=(hours,))
+    except Exception as exc:
+        logger.warning("get_data_quality_hourly failed: %s", exc, exc_info=True)
+        return pd.DataFrame()

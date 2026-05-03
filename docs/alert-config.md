@@ -11,7 +11,7 @@ The `Deployment` pulls `epidemic-alert-service:latest` from your namespace’s i
 
 | Setting | Source | How to change |
 |---------|--------|---------------|
-| Numeric thresholds (`event_count`, `avg_severity`) | `epidemic-alert-rules` ConfigMap, key `thresholds.json` (mounted at `/etc/alerting/thresholds.json`). Default copy: `alert/thresholds.json`. | `oc edit configmap epidemic-alert-rules` (or reapply `alert/alert-deployment.yaml`), then `oc rollout restart deploy/epidemic-alert-service`. |
+| Numeric thresholds (`event_count`, `avg_severity`, `data_quality_issue_pct`, `missing_severity_pct`) | `epidemic-alert-rules` ConfigMap, key `thresholds.json` (mounted at `/etc/alerting/thresholds.json`). Default copy: `alert/thresholds.json`. | `oc edit configmap epidemic-alert-rules` (or reapply `alert/alert-deployment.yaml`), then `oc rollout restart deploy/epidemic-alert-service`. |
 | ML pipeline thresholds (`PREDICTION_STALE_MINUTES`, etc.) | `epidemic-alert-config` ConfigMap. | `oc edit configmap epidemic-alert-config` and restart the deployment. |
 | Polling, cooldown, escalation timers | `epidemic-alert-config` ConfigMap. | Same as above. |
 | Slack channel and mention behavior | `epidemic-alert-config` ConfigMap. | Same as above. |

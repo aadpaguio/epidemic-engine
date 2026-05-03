@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Epidemic alerting service.
 
-Polls TimescaleDB for pipeline freshness, ML outbreak signals, and
+Polls TimescaleDB for pipeline freshness, ML outbreak signals, landed
+data-quality rates (completeness on ``raw_typed_events``), and
 ConfigMap-driven event-volume / severity thresholds. Persists each alert
 to the ``alert_events`` table, emits a structured ``[ALERT]`` JSON log
 line to stdout, and (when configured) posts to a Slack incoming webhook.
@@ -137,6 +138,28 @@ DEFAULT_METRIC_RULES: dict[str, dict[str, Any]] = {
         "severity": "critical",
         "min_windows_breaching": 2,
         "cooldown_seconds": 1800,
+    },
+    "high_landed_data_quality_issue_rate": {
+        "metric": "data_quality_issue_pct",
+        "windows": [
+            {"name": "1h", "minutes": 60, "threshold": 20.0},
+            {"name": "6h", "minutes": 360, "threshold": 20.0},
+            {"name": "24h", "minutes": 1440, "threshold": 20.0},
+        ],
+        "severity": "warning",
+        "min_windows_breaching": 2,
+        "cooldown_seconds": 3600,
+    },
+    "high_missing_severity_rate": {
+        "metric": "missing_severity_pct",
+        "windows": [
+            {"name": "1h", "minutes": 60, "threshold": 20.0},
+            {"name": "6h", "minutes": 360, "threshold": 20.0},
+            {"name": "24h", "minutes": 1440, "threshold": 20.0},
+        ],
+        "severity": "warning",
+        "min_windows_breaching": 2,
+        "cooldown_seconds": 3600,
     },
 }
 
@@ -793,6 +816,62 @@ def query_avg_severity(conn, minutes: int) -> float | None:
     return float(row[0])
 
 
+def query_data_quality_issue_pct(conn, minutes: int) -> float | None:
+    """Share of landed typed events in the window with completeness or severity-parse issues."""
+    sql = """
+        SELECT
+            CASE
+                WHEN COUNT(*) = 0 THEN NULL::double precision
+                ELSE 100.0 * COUNT(*) FILTER (
+                    WHERE (event_type IS NULL OR trim(event_type) = '')
+                       OR event_ts IS NULL
+                       OR NOT (payload_json ? 'region')
+                       OR trim(COALESCE(payload_json->>'region', '')) = ''
+                       OR NOT (payload_json ? 'severity')
+                       OR trim(COALESCE(payload_json->>'severity', '')) = ''
+                       OR (
+                           payload_json ? 'severity'
+                           AND trim(COALESCE(payload_json->>'severity', '')) <> ''
+                           AND lower(trim(payload_json->>'severity')) NOT IN (
+                               'mild', 'moderate', 'severe', 'critical'
+                           )
+                           AND NOT (payload_json->>'severity' ~ '^[0-9]+(\\.[0-9]+)?$')
+                       )
+                )::double precision / COUNT(*)::double precision
+            END
+        FROM raw_typed_events
+        WHERE COALESCE(event_ts, ingested_at) >= now() - (%s || ' minutes')::interval
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql, (minutes,))
+        row = cur.fetchone()
+    if not row or row[0] is None:
+        return None
+    return float(row[0])
+
+
+def query_missing_severity_pct(conn, minutes: int) -> float | None:
+    """Share of landed rows in the window with missing ``severity`` in payload_json."""
+    sql = """
+        SELECT
+            CASE
+                WHEN COUNT(*) = 0 THEN NULL::double precision
+                ELSE 100.0 * COUNT(*) FILTER (
+                    WHERE NOT (payload_json ? 'severity')
+                       OR trim(COALESCE(payload_json->>'severity', '')) = ''
+                )::double precision / COUNT(*)::double precision
+            END
+        FROM raw_typed_events
+        WHERE COALESCE(event_ts, ingested_at) >= now() - (%s || ' minutes')::interval
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql, (minutes,))
+        row = cur.fetchone()
+    if not row or row[0] is None:
+        return None
+    return float(row[0])
+
+
 def evaluate_metric_rule(
     rule_name: str,
     rule: dict[str, Any],
@@ -859,13 +938,55 @@ def _measure_avg_severity(conn, windows: list[dict[str, Any]]) -> list[dict[str,
 
 def _format_metric_message(rule_name: str, result: dict[str, Any]) -> str:
     breaches = [m for m in result["measurements"] if m.get("breach")]
-    parts = [
-        f"{m['window']}={m['value']}>{m['threshold']}" for m in breaches
-    ]
+    parts: list[str] = []
+    for m in breaches:
+        v = m.get("value")
+        v_s = "N/A" if v is None else str(v)
+        parts.append(f"{m['window']}={v_s}>{m['threshold']}")
     return (
         f"{rule_name}: {result['n_breaches']}/{len(result['measurements'])} "
         f"windows breached ({', '.join(parts)})"
     )
+
+
+def _measure_data_quality_issue_pct(
+    conn, windows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    measurements: list[dict[str, Any]] = []
+    for window in windows:
+        minutes = int(window["minutes"])
+        threshold = float(window["threshold"])
+        value = query_data_quality_issue_pct(conn, minutes)
+        measurements.append(
+            {
+                "window": window.get("name") or f"{minutes}m",
+                "minutes": minutes,
+                "value": None if value is None else round(float(value), 3),
+                "threshold": threshold,
+                "breach": value is not None and value > threshold,
+            }
+        )
+    return measurements
+
+
+def _measure_missing_severity_pct(
+    conn, windows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    measurements: list[dict[str, Any]] = []
+    for window in windows:
+        minutes = int(window["minutes"])
+        threshold = float(window["threshold"])
+        value = query_missing_severity_pct(conn, minutes)
+        measurements.append(
+            {
+                "window": window.get("name") or f"{minutes}m",
+                "minutes": minutes,
+                "value": None if value is None else round(float(value), 3),
+                "threshold": threshold,
+                "breach": value is not None and value > threshold,
+            }
+        )
+    return measurements
 
 
 def check_metric_rules(
@@ -876,7 +997,12 @@ def check_metric_rules(
     for rule_name, rule in rules.items():
         metric = rule.get("metric")
         windows = rule.get("windows") or []
-        if not windows or metric not in ("event_count", "avg_severity"):
+        if not windows or metric not in (
+            "event_count",
+            "avg_severity",
+            "data_quality_issue_pct",
+            "missing_severity_pct",
+        ):
             logger.warning("skipping rule %s: invalid metric/windows", rule_name)
             continue
 
@@ -884,8 +1010,12 @@ def check_metric_rules(
         try:
             if metric == "event_count":
                 measurements = _measure_event_count(conn, windows)
-            else:
+            elif metric == "avg_severity":
                 measurements = _measure_avg_severity(conn, windows)
+            elif metric == "data_quality_issue_pct":
+                measurements = _measure_data_quality_issue_pct(conn, windows)
+            elif metric == "missing_severity_pct":
+                measurements = _measure_missing_severity_pct(conn, windows)
         except psycopg2.Error as exc:
             # Roll back so the connection stays usable for downstream rules
             # (e.g. when raw_typed_events is missing on a fresh DB).

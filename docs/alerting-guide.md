@@ -22,7 +22,7 @@ The service runs `run_cycle()` every `ALERT_POLL_SECONDS`. Each cycle it:
 1. Ensures the `alert_events` table exists.
 2. Checks ML pipeline freshness (predictions, feature view).
 3. Checks ML outbreak agreement (composite + optional single-detector).
-4. Evaluates ConfigMap-driven metric rules (event volume, avg severity).
+4. Evaluates ConfigMap-driven metric rules (event volume, avg severity, landed data-quality rates).
 5. Resolves any previously active alert key whose condition has cleared.
 
 ## Categories of alerts
@@ -33,6 +33,7 @@ The service runs `run_cycle()` every `ALERT_POLL_SECONDS`. Each cycle it:
 | ML outbreak (`outbreak_risk`) | `ml_outbreak_predictions` | critical (3+ models), warning (2 models), info (single, opt-in) | One row per `(region, bucket_start)`. |
 | Event volume (`event_count`) | `raw_typed_events` over 5m / 1h / 1d windows | rule-defined | Multi-window consistency required. |
 | Avg severity (`avg_severity`) | `raw_typed_events` payload severities (mild=1..critical=4) | rule-defined | Multi-window consistency required. |
+| Data quality (`data_quality_issue_pct`, `missing_severity_pct`) | `raw_typed_events` sliding windows (same completeness definitions as `vw_data_quality_hourly`) | rule-defined | Default windows 1h / 6h / 24h; see [`docs/data-quality-monitoring.md`](data-quality-monitoring.md). |
 
 ## `alert_events` schema
 
@@ -41,7 +42,7 @@ The service runs `run_cycle()` every `ALERT_POLL_SECONDS`. Each cycle it:
 | `alert_key` | TEXT PK | Stable dedup key (`pipeline:stale_predictions`, `metric:high_event_volume`, `outbreak:Region:ISO8601:composite`, etc.). |
 | `created_at` | TIMESTAMPTZ | First active emission. Reset to `now()` if an alert resolves and re-fires. |
 | `updated_at` | TIMESTAMPTZ | Last upsert. Used by cooldown gating. |
-| `alert_type` | TEXT | `prediction_freshness`, `feature_freshness`, `outbreak_risk`, `event_count`, `avg_severity`, … |
+| `alert_type` | TEXT | `prediction_freshness`, `feature_freshness`, `outbreak_risk`, `event_count`, `avg_severity`, `data_quality_issue_pct`, `missing_severity_pct`, … |
 | `severity` | TEXT | `critical`, `warning`, `info`. |
 | `region` | TEXT | Optional; set on regional outbreak alerts. |
 | `bucket_start` | TIMESTAMPTZ | Optional; set when the alert ties to a Spark hour. |

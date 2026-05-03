@@ -394,3 +394,55 @@ def bar_top_vaccination_regions(df: pd.DataFrame, top_n: int = 8):
     )
     _finalize_fig(fig, height=280, horizontal_legend=False)
     st.plotly_chart(fig, use_container_width=True)
+
+
+_DQ_RATE_LABELS = {
+    "quality_issue_pct": "Quality issue %",
+    "missing_severity_pct": "Missing severity %",
+}
+
+
+def line_data_quality_rates(df: pd.DataFrame):
+    """Plot hourly quality-issue and missing-severity percentages."""
+    if df.empty:
+        st.info("No data quality rows in this window (or view not installed).")
+        return
+    plot_df = df.copy()
+    plot_df["bucket_start"] = pd.to_datetime(plot_df["bucket_start"], utc=True)
+    chart_df = plot_df.melt(
+        id_vars=["bucket_start"],
+        value_vars=["quality_issue_pct", "missing_severity_pct"],
+        var_name="metric",
+        value_name="pct",
+    )
+    chart_df["metric"] = chart_df["metric"].map(_DQ_RATE_LABELS).fillna(chart_df["metric"])
+    fig = px.line(
+        chart_df,
+        x="bucket_start",
+        y="pct",
+        color="metric",
+        title="Landed event data quality (hourly)",
+        color_discrete_sequence=PALETTE,
+    )
+    fig.update_yaxes(title_text="Percent")
+    _apply_time_axis(fig, chart_df)
+    _finalize_fig(fig, height=340)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def line_data_quality_volume(df: pd.DataFrame):
+    """Plot hourly landed event counts from the same quality rollup."""
+    if df.empty:
+        return
+    plot_df = df.copy()
+    plot_df["bucket_start"] = pd.to_datetime(plot_df["bucket_start"], utc=True)
+    fig = px.line(
+        plot_df,
+        x="bucket_start",
+        y="total_events",
+        title="Landed events per hour (raw_typed_events)",
+    )
+    fig.update_traces(line_color=PALETTE[0])
+    _apply_time_axis(fig, plot_df)
+    _finalize_fig(fig, height=300)
+    st.plotly_chart(fig, use_container_width=True)

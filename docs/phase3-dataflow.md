@@ -37,9 +37,9 @@ TimescaleDB Layer B: SQL views
   - vw_region_hourly_ml_features* (ML feature views built on regional analytics)
   ↓
 Phase 3 consumers:
-  - Streamlit dashboard (app/dashboard.py reads analytic_* + ml_outbreak_predictions + alert_events)
+  - Streamlit dashboard (app/dashboard.py reads analytic_* + ml_outbreak_predictions + alert_events + vw_data_quality_hourly)
   - Outbreak prediction batch job (ml/predict.py reads vw_region_hourly_ml_features_windowed; writes ml_outbreak_predictions)
-  - Alert service (epidemic-alert-service / alert/alert_service.py): reads raw_typed_events (metric rules),
+  - Alert service (epidemic-alert-service / alert/alert_service.py): reads raw_typed_events (metric rules + data-quality rates),
     ml_outbreak_predictions, vw_region_hourly_ml_features_windowed; writes alert_events; emits structured [ALERT] logs;
     optional Slack notifications (#epidemic-alerts via incoming webhook)
 ```

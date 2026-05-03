@@ -56,6 +56,19 @@ def test_batch_window_runs_primary_key(pg_connection):
     assert cols == ["window_start", "run_id"]
 
 
+def test_vw_data_quality_hourly_exists(pg_connection):
+    with pg_connection.cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1 FROM information_schema.views
+            WHERE table_schema = 'public' AND table_name = 'vw_data_quality_hourly'
+            """
+        )
+        assert cur.fetchone() is not None, (
+            "Apply latest database-init.sql (includes vw_data_quality_hourly)"
+        )
+
+
 def test_dirty_window_query_syntax(pg_connection):
     """Exercise the dirty-window SQL shape used for raw_db hourly refresh (read-only)."""
     with pg_connection.cursor() as cur:

@@ -14,6 +14,8 @@ from components import (
     line_detector_risk,
     line_diagnosis_temperature,
     line_event_volume,
+    line_data_quality_rates,
+    line_data_quality_volume,
     line_follow_up_rates,
     line_regional_severity,
     line_vaccination_volume,
@@ -21,6 +23,7 @@ from components import (
 from db import render_connection_status
 from sql_queries import (
     get_alert_events,
+    get_data_quality_hourly,
     get_detector_consensus,
     get_diagnosis_temperature,
     get_event_volume,
@@ -452,6 +455,7 @@ with st.sidebar:
             "Regional Pulse",
             "Detector Signals",
             "Operations Desk",
+            "Data Quality",
             "Clinical Context",
             "Alerts",
         ],
@@ -485,6 +489,7 @@ prediction_rows = _coerce_prediction_timestamp(
 detector_consensus = _coerce_prediction_timestamp(
     get_detector_consensus(hours=min(hours, 72))
 )
+data_quality_hourly = get_data_quality_hourly(hours=hours)
 prediction_rows_labeled = _label_prediction_methods(prediction_rows)
 watchlist = _build_watchlist(prediction_rows, detector_consensus, regional)
 
@@ -923,6 +928,54 @@ elif page == "Operations Desk":
                 "follow_up_true_count": "Follow-ups",
                 "follow_up_rate": "Rate",
             },
+        )
+
+elif page == "Data Quality":
+    st.subheader("Landed event data quality")
+    st.caption(
+        "Rollups from `vw_data_quality_hourly` over `raw_typed_events` (typed-topic ingest). "
+        "Tekton still validates Kafka upstream; see docs/data-quality-monitoring.md."
+    )
+    if data_quality_hourly.empty:
+        st.warning(
+            "No hourly quality rows returned. Apply the latest database init (includes "
+            "`vw_data_quality_hourly`) or confirm typed events are landing."
+        )
+    else:
+        dq = data_quality_hourly.copy()
+        dq["bucket_start"] = pd.to_datetime(dq["bucket_start"], utc=True, errors="coerce")
+        dq = dq.dropna(subset=["bucket_start"]).sort_values("bucket_start")
+        latest = dq.iloc[-1]
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Latest hour (UTC)", str(latest["bucket_start"])[:19])
+        c2.metric("Events in hour", f"{int(latest['total_events']):,}")
+        qip = latest.get("quality_issue_pct")
+        c3.metric(
+            "Quality issue %",
+            "N/A" if pd.isna(qip) else f"{float(qip):.1f}%",
+        )
+        msp = latest.get("missing_severity_pct")
+        c4.metric(
+            "Missing severity %",
+            "N/A" if pd.isna(msp) else f"{float(msp):.1f}%",
+        )
+        line_data_quality_rates(dq)
+        line_data_quality_volume(dq)
+        st.markdown("#### Latest hour breakdown (counts)")
+        brk = latest[
+            [
+                "missing_event_type",
+                "missing_event_ts",
+                "missing_region",
+                "missing_severity",
+                "invalid_severity",
+                "quality_issue_count",
+            ]
+        ]
+        st.dataframe(
+            pd.DataFrame([brk.to_dict()]),
+            use_container_width=True,
+            hide_index=True,
         )
 
 elif page == "Alerts":

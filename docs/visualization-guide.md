@@ -45,11 +45,7 @@ streamlit run app/dashboard.py
 Expected behavior:
 
 - App shows "Connected to TimescaleDB" if port-forward and credentials are correct.
-- App displays multi-page navigation:
-  - Overview
-  - Regional Trends
-  - Hospital & Clinic Operations
-  - Clinical Signals
+- App displays multi-page navigation (sidebar), including **Data Quality** (hourly completeness on `raw_typed_events` via `vw_data_quality_hourly`). See [`docs/data-quality-monitoring.md`](data-quality-monitoring.md).
 
 ## 6) Visualizations included
 
@@ -61,6 +57,7 @@ The mockup queries Layer B analytics views and renders:
 4. Follow-up rate by clinic (`analytic_follow_up_rate_by_clinic`)
 5. Avg temperature by diagnosis (`analytic_avg_temperature_by_diagnosis`)
 6. Vaccination volume by type (`analytic_vaccination_volume_by_type`, CO-2026-01)
+7. Data quality rates and landed volume (`vw_data_quality_hourly` on **Data Quality** page)
 
 ## 7) Screenshot checklist (Phase 3 evidence)
 
@@ -70,6 +67,7 @@ Capture at least:
 - Regional Trends page with region filter and two charts
 - Hospital & Clinic Operations page with capacity pressure + follow-up trend
 - Clinical Signals page with diagnosis temperature chart
+- Data Quality page with quality-issue % and hourly volume charts
 - Terminal showing active `oc port-forward`
 
 ## 8) Troubleshooting
