@@ -107,23 +107,25 @@ Rows are written to `ml_outbreak_predictions` with method-specific `model_versio
 
 Relevant environment variables:
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `ML_LOOKBACK_HOURS` | 72 | SQL window for feature rows |
-| `ML_OUTPUT_WINDOW_HOURS` | 24 | Buckets to insert per run |
-| `MOVING_AVG_K` | 6 | Prior-window length |
-| `MOVING_AVG_Z_THRESHOLD` | 2.0 | Stored in `threshold` for MA rows |
-| `MOVING_AVG_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
-| `MOVING_AVG_MODEL_VERSION` | moving_avg_k6_v1 | `model_version` column |
-| `EWMA_ALPHA` | 0.35 | Exponential smoothing weight |
-| `EWMA_Z_THRESHOLD` | 2.0 | Stored in `threshold` for EWMA rows |
-| `EWMA_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
-| `EWMA_MODEL_VERSION` | ewma_v1 | `model_version` column |
-| `KALMAN_PROCESS_VAR` | 0.05 | How quickly hidden state can move |
-| `KALMAN_OBSERVATION_VAR` | 0.2 | Observation noise for `log1p(total_case_events)` |
-| `KALMAN_Z_THRESHOLD` | 2.0 | Stored in `threshold` for Kalman rows |
-| `KALMAN_SEVERITY_THRESHOLD` | 2.3 | Severity gate |
-| `KALMAN_MODEL_VERSION` | kalman_v1 | `model_version` column |
+
+| Variable                        | Default          | Purpose                                          |
+| ------------------------------- | ---------------- | ------------------------------------------------ |
+| `ML_LOOKBACK_HOURS`             | 72               | SQL window for feature rows                      |
+| `ML_OUTPUT_WINDOW_HOURS`        | 24               | Buckets to insert per run                        |
+| `MOVING_AVG_K`                  | 6                | Prior-window length                              |
+| `MOVING_AVG_Z_THRESHOLD`        | 2.0              | Stored in `threshold` for MA rows                |
+| `MOVING_AVG_SEVERITY_THRESHOLD` | 2.3              | Severity gate                                    |
+| `MOVING_AVG_MODEL_VERSION`      | moving_avg_k6_v1 | `model_version` column                           |
+| `EWMA_ALPHA`                    | 0.35             | Exponential smoothing weight                     |
+| `EWMA_Z_THRESHOLD`              | 2.0              | Stored in `threshold` for EWMA rows              |
+| `EWMA_SEVERITY_THRESHOLD`       | 2.3              | Severity gate                                    |
+| `EWMA_MODEL_VERSION`            | ewma_v1          | `model_version` column                           |
+| `KALMAN_PROCESS_VAR`            | 0.05             | How quickly hidden state can move                |
+| `KALMAN_OBSERVATION_VAR`        | 0.2              | Observation noise for `log1p(total_case_events)` |
+| `KALMAN_Z_THRESHOLD`            | 2.0              | Stored in `threshold` for Kalman rows            |
+| `KALMAN_SEVERITY_THRESHOLD`     | 2.3              | Severity gate                                    |
+| `KALMAN_MODEL_VERSION`          | kalman_v1        | `model_version` column                           |
+
 
 For a quick local check that does not connect to TimescaleDB or insert rows, run:
 
@@ -270,3 +272,4 @@ Phase 1 Kafka
 - The labels are synthetic heuristic labels.
 - The current training set is small.
 - The model demonstrates an operational ML pipeline, not a clinically validated public-health predictor.
+

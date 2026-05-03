@@ -14,7 +14,7 @@ This repository implements a multi-phase, cloud-native pipeline for synthetic ep
 - **Layer B (SQL in TimescaleDB)**: `analytic_*` views (and ML feature views) built on hourly facts (`infra/database-init.sql`, `infra/database-deployment.yaml`).
 - **Phase 3 (consumers)**: Streamlit dashboard (`app/`), ML scoring (`ml/`), alerting (`alert/`).
 
-If you want one “how we run it for hours without CronJobs” guide, start with [`docs/continuous-collection-plan.md`](docs/continuous-collection-plan.md).
+If you want one “how we run it for hours without CronJobs” guide, start with [`docs/runbook.md`](docs/runbook.md).
 
 ---
 
@@ -68,7 +68,7 @@ Notes: see [`tekton/README.md`](tekton/README.md) and [`docs/tekton-tips.md`](do
 
 ### Phase 2/3: database + Spark ETL + raw landing (recommended sequencing)
 
-This repo’s recommended “stable collection + refresh” mode is documented in [`docs/continuous-collection-plan.md`](docs/continuous-collection-plan.md), including:
+This repo’s recommended “stable collection + refresh” mode is documented in [`docs/runbook.md`](docs/runbook.md), including:
 
 - applying DB manifests / DDL (including `raw_typed_events`)
 - running Phase 1 in a quota-safe loop
@@ -104,8 +104,8 @@ See [`docs/visualization-guide.md`](docs/visualization-guide.md).
 
 - **Architecture (consolidated):** [`docs/architecture.md`](docs/architecture.md)
 - **Phase 3 flow (short):** [`docs/phase3-dataflow.md`](docs/phase3-dataflow.md)
-- **Timed continuous collection / raw landing runbook:** [`docs/continuous-collection-plan.md`](docs/continuous-collection-plan.md)
-- **Testing / smoke expectations:** [`docs/testing-plan.md`](docs/testing-plan.md)
+- **Timed continuous collection / raw landing runbook:** [`docs/runbook.md`](docs/runbook.md)
+- **Testing / smoke expectations:** [`docs/testing-plan.md`](docs/testing-plan.md) — run everything with [`scripts/run-test-suite.sh`](scripts/run-test-suite.sh)
 - **Spark ETL deploy + env vars:** [`spark/README.md`](spark/README.md)
 - **ML guide:** [`docs/ml-model-guide.md`](docs/ml-model-guide.md)
 - **Alerting guide:** [`docs/alerting-guide.md`](docs/alerting-guide.md)

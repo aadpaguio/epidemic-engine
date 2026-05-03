@@ -54,6 +54,33 @@ SELECT extname FROM pg_extension WHERE extname = 'timescaledb';
 
 If `timescaledb` is returned, the extension is enabled and connection is correct.
 
+## pytest integration tests (`tests/db/`)
+
+The same **localhost** connection settings work for automated DB checks.
+
+1. Start port-forward (as above), keep the terminal open.
+2. Either export a full URL:
+
+   ```bash
+   export EPIDEMIC_TEST_PG_URL='postgresql://spark_writer:YOUR_PASSWORD@127.0.0.1:5432/epidemic'
+   ```
+
+   …or create a repo-root **`.env`** from [`.env.example`](../.env.example) with `DB_HOST=localhost`, `DB_USER=spark_writer`, `DB_PASSWORD`, `DB_NAME=epidemic`, `DB_PORT=5432`. The test harness loads `.env` automatically.
+
+3. Run:
+
+   ```bash
+   uv run pytest tests/db -v
+   ```
+
+   Or the full suite:
+
+   ```bash
+   ./scripts/run-test-suite.sh
+   ```
+
+Full testing overview: [`docs/testing-plan.md`](testing-plan.md).
+
 ## Troubleshooting
 
 - If DBeaver cannot connect, verify DB pod/service:

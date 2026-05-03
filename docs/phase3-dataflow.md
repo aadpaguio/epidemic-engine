@@ -1,6 +1,6 @@
 # Phase 3 Data Flow
 
-This document is the **short, end-to-end mental model** for how data moves through the system in Phase 3. For operational commands, sequencing, and quota-safe runners, see [`continuous-collection-plan.md`](continuous-collection-plan.md). For Spark configuration details, see [`spark/README.md`](../spark/README.md).
+This document is the **short, end-to-end mental model** for how data moves through the system in Phase 3. For operational commands, sequencing, and quota-safe runners, see [`runbook.md`](runbook.md). For Spark configuration details, see [`spark/README.md`](../spark/README.md).
 
 ## End-to-end system flow (logical)
 
@@ -65,7 +65,7 @@ In `spark/etl.py`, when `FEATURE_SOURCE_MODE` is unset:
 
 ## Related docs
 
-- [`continuous-collection-plan.md`](continuous-collection-plan.md): recommended sequenced operation, dirty-window refresh, and raw landing DDL notes
+- [`runbook.md`](runbook.md): recommended sequenced operation, dirty-window refresh, and raw landing DDL notes
 - [`phase3-architecture.md`](phase3-architecture.md): Phase 3 system framing
 - [`architecture.md`](architecture.md): consolidated architecture reference for the repo
 - [`testing-plan.md`](testing-plan.md): canonical smoke expectations for the raw-db path
