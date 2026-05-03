@@ -15,7 +15,7 @@ def test_raw_typed_events_exists(pg_connection):
             WHERE table_schema = 'public' AND table_name = 'raw_typed_events'
             """
         )
-        assert cur.fetchone() is not None, "Apply DDL (scripts/apply-raw-landing-ddl.sh) first"
+        assert cur.fetchone() is not None, "Apply raw landing DDL for raw_typed_events first"
 
 
 def test_raw_typed_events_primary_key_columns(pg_connection):
@@ -57,7 +57,7 @@ def test_batch_window_runs_primary_key(pg_connection):
 
 
 def test_dirty_window_query_syntax(pg_connection):
-    """Exercise the dirty-window shape used by scripts/run-rawdb-feature-refresh.sh (read-only)."""
+    """Exercise the dirty-window SQL shape used for raw_db hourly refresh (read-only)."""
     with pg_connection.cursor() as cur:
         cur.execute(
             """

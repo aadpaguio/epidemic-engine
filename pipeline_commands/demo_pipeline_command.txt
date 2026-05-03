@@ -1,0 +1,11 @@
+BATCH_SIZE=50 \
+DURATION_SEC=600 \
+PHASE1_RUNS_PER_CYCLE=1 \
+PHASE1_TIMEOUT_SEC=600 \
+INGEST_RUN_SECONDS=15 \
+bash scripts/run-phase1-rawdb-sequenced.sh
+
+
+oc exec -n ds551-2026-spring-a5f0d1 timescaledb-0 -- \
+  psql -U spark_writer -d epidemic -c \
+  'SELECT * FROM analytic_regional_disease_severity_trend ORDER BY bucket_start DESC LIMIT 10;'
