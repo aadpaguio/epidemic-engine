@@ -160,6 +160,27 @@ CREATE INDEX IF NOT EXISTS idx_feature_diagnosis_hourly_diagnosis
 CREATE INDEX IF NOT EXISTS idx_feature_vaccination_hourly_vaccine_bucket
     ON feature_vaccination_hourly (vaccine_type, bucket_start DESC);
 
+-- Raw typed-event landing table; alerting reads windowed counts and severity
+-- from this table, and Spark reads it instead of re-scanning Kafka.
+CREATE TABLE IF NOT EXISTS raw_typed_events (
+    topic             TEXT        NOT NULL,
+    kafka_partition   INT         NOT NULL,
+    kafka_offset      BIGINT      NOT NULL,
+    event_type        TEXT,
+    event_ts          TIMESTAMPTZ,
+    payload_json      JSONB       NOT NULL,
+    run_id            TEXT,
+    batch_id          TEXT,
+    ingested_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (topic, kafka_partition, kafka_offset)
+);
+CREATE INDEX IF NOT EXISTS idx_raw_typed_events_event_ts
+    ON raw_typed_events (event_ts DESC);
+CREATE INDEX IF NOT EXISTS idx_raw_typed_events_ingested_at
+    ON raw_typed_events (ingested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_raw_typed_events_event_type
+    ON raw_typed_events (event_type, event_ts DESC);
+
 -- ---------------------------------------------------------------------------
 -- Layer B: six derived analytics (views on latest batch per bucket for serving;
 -- Spark may append multiple batch_id rows — views filter to max(run_timestamp) per key.)
