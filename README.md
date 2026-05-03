@@ -20,10 +20,10 @@ If you want one “how we run it for hours without CronJobs” guide, start with
 
 ## Team members
 
-- [Aidan Smith] — [Pipelinerun, design/planning]
-- [Arnald Paguio] — [Task definitions]
-- [Evan Ferguson-Hull] — [Logging cleanup and README]
-- [Jason Nguyen] — [Pipeline development]
+- [Aidan Smith]
+- [Arnald Paguio]
+- [Evan Ferguson-Hull]
+- [Jason Nguyen]
 
 ---
 
