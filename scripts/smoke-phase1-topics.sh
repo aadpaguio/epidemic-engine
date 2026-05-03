@@ -2,7 +2,7 @@
 # Smoke test Phase 1 Kafka processing:
 #   raw topic -> validated topic -> typed symptom/clinic/hospital/vaccination topics.
 # For full pipeline smoke (Phase 1 + raw ingest + feature refresh), prefer
-# scripts/run-phase1-rawdb-sequenced.sh (see docs/continuous-collection-plan.md).
+# scripts/run-phase1-rawdb-sequenced.sh (see docs/runbook.md).
 #
 # Run from repo root after `oc login` and `oc project <namespace>`.
 set -euo pipefail

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Canonical cluster smoke for continuous collection: Phase 1 PipelineRuns -> bounded raw
 # typed-topic ingest -> dirty-window Spark refresh (FEATURE_SOURCE_MODE=raw_db).
-# See docs/continuous-collection-plan.md and docs/testing-plan.md.
+# See docs/runbook.md and docs/testing-plan.md.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,7 +9,7 @@ cd "$REPO_ROOT"
 
 NAMESPACE="${NAMESPACE:-ds551-2026-spring-a5f0d1}"
 DURATION_SEC="${DURATION_SEC:-10800}"
-PHASE1_TIMEOUT_SEC="${PHASE1_TIMEOUT_SEC:-300}"
+PHASE1_TIMEOUT_SEC="${PHASE1_TIMEOUT_SEC:-1200}"
 PHASE1_CANCEL_ON_TIMEOUT="${PHASE1_CANCEL_ON_TIMEOUT:-1}"
 PHASE1_RUNS_PER_CYCLE="${PHASE1_RUNS_PER_CYCLE:-3}"
 BATCH_SIZE="${BATCH_SIZE:-500}"
@@ -33,6 +33,7 @@ MAX_DIRTY_WINDOWS_PER_RUN="${MAX_DIRTY_WINDOWS_PER_RUN:-6}"
 REFRESH_SLEEP_SEC="${REFRESH_SLEEP_SEC:-30}"
 LOG_DIR="${LOG_DIR:-logs/runtime}"
 LOG_FILE="${LOG_FILE:-}"
+TEKTON_LOG_TAIL="${TEKTON_LOG_TAIL:-1200}"
 STOP_REQUESTED=0
 
 setup_logging() {
@@ -47,12 +48,23 @@ log() {
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"
 }
 
+log_phase1_tekton_pod_logs() {
+  local pr_name="$1"
+  local pod
+  log "[phase1] Tekton task pod logs (tekton.dev/pipelineRun=${pr_name}, tail=${TEKTON_LOG_TAIL})"
+  while IFS= read -r pod; do
+    [ -z "$pod" ] && continue
+    log "[phase1] --- pod/${pod} ---"
+    oc logs -n "$NAMESPACE" "pod/${pod}" --all-containers=true --tail="${TEKTON_LOG_TAIL}" 2>&1 || log "[phase1] (no logs for pod/${pod})"
+  done < <(oc get pods -n "$NAMESPACE" -l "tekton.dev/pipelineRun=${pr_name}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | sort)
+}
+
 on_interrupt() {
   STOP_REQUESTED=1
 }
 
 run_phase1_once() {
-  local pr wait_rc=0
+  local pr pr_name wait_rc=0
   pr="$(oc create -n "$NAMESPACE" -f - -o name <<YAML
 apiVersion: tekton.dev/v1
 kind: PipelineRun
@@ -94,9 +106,15 @@ spec:
       value: ${ROUTE_AUTO_OFFSET_RESET}
 YAML
 )"
+  pr_name="${pr##*/}"
   log "[phase1] started ${pr}"
   oc wait -n "$NAMESPACE" --for=condition=Succeeded "$pr" --timeout="${PHASE1_TIMEOUT_SEC}s" || wait_rc=$?
   oc get "$pr" -n "$NAMESPACE" || true
+  log_phase1_tekton_pod_logs "$pr_name"
+  if [ "$wait_rc" -ne 0 ]; then
+    log "[phase1] PipelineRun/${pr_name} did not succeed; describe follows"
+    oc describe -n "$NAMESPACE" "pipelinerun/${pr_name}" 2>&1 || true
+  fi
   if [ "$wait_rc" -ne 0 ] && [ "$PHASE1_CANCEL_ON_TIMEOUT" = "1" ]; then
     log "[phase1] ${pr} did not finish within ${PHASE1_TIMEOUT_SEC}s; cancelling before continuing"
     oc patch "$pr" -n "$NAMESPACE" --type merge -p '{"spec":{"status":"Cancelled"}}' >/dev/null || true

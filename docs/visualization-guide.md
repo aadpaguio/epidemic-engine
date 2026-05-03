@@ -86,3 +86,4 @@ Capture at least:
     SELECT count(*) FROM analytic_event_volume_by_type;
     SELECT count(*) FROM analytic_regional_disease_severity_trend;
     ```
+

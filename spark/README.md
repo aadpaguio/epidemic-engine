@@ -17,6 +17,8 @@ The job implements **six distinct hourly aggregations** in `spark/etl.py`. Each 
 
 **Windowed revisions (stale-but-available):** each run requires an explicit UTC window (`WINDOW_START_UTC`, `WINDOW_END_UTC`) and appends a new `batch_id` for that window. Serving views publish the latest **successful** batch, so failed replacements do not remove the previous successful hour.
 
+**Feature source (`FEATURE_SOURCE_MODE`):** when JDBC writes are enabled (normal runs), `etl.py` defaults to `raw_db` (read `raw_typed_events`). Set `FEATURE_SOURCE_MODE=kafka` to read typed Kafka topics directly. When `SKIP_JDBC_WRITE=true`, the default remains `kafka` because `raw_db` requires JDBC reads.
+
 ## Configuration (environment)
 
 

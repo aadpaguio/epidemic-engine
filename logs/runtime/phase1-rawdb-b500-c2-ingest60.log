@@ -1,0 +1,853 @@
+[2026-05-01T23:46:29Z] [seq] namespace=ds551-2026-spring-a5f0d1 duration_sec=18000 phase1_runs_per_cycle=2 batch_size=500 phase1_timeout_sec=300
+[2026-05-01T23:46:29Z] [seq] phase1 cycle run 1/2
+[2026-05-01T23:46:29Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-2jzs7
+pipelinerun.tekton.dev/phase1-continuous-run-2jzs7 condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-2jzs7   True        Succeeded   4m36s       0s
+[2026-05-01T23:51:05Z] [seq] phase1 cycle run 2/2
+[2026-05-01T23:51:06Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-wxkvd
+error: timed out waiting for the condition on pipelineruns/phase1-continuous-run-wxkvd
+NAME                          SUCCEEDED   REASON    STARTTIME   COMPLETIONTIME
+phase1-continuous-run-wxkvd   Unknown     Running   5m          
+[2026-05-01T23:56:06Z] [phase1] pipelinerun.tekton.dev/phase1-continuous-run-wxkvd did not finish within 300s; cancelling before continuing
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-wxkvd   False       Cancelled   6m1s        60s
+[2026-05-01T23:57:07Z] [seq] phase1 run 2/2 failed; continuing to ingest/refresh
+[2026-05-01T23:57:07Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 90.8 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=125.4/s topics={'ds551-s26.team02.hospital_admissions': 87, 'ds551-s26.team02.symptom_reports': 253, 'ds551-s26.team02.clinic_visits': 160} event_hours={'2026-05-01T12:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=192 poll_inserted=192 processed=692 inserted=692 rate=162.6/s topics={'ds551-s26.team02.clinic_visits': 55, 'ds551-s26.team02.vaccination_records': 137} event_hours={'2026-05-01T12:00:00+00:00': 192}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=692 inserted=692 rate=11.5/s
+[2026-05-01T23:58:28Z] [seq] running one rawdb feature refresh cycle
+[2026-05-01T23:58:29Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-01T23:58:29Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-01T23:58:30Z] [refresh] dirty windows selected:
+[2026-05-01T23:58:30Z] [refresh] dirty windows selected:
+[2026-05-01T23:58:30Z] [refresh]   2026-05-01T12:00:00Z
+[2026-05-01T23:58:30Z] [refresh]   2026-05-01T12:00:00Z
+[2026-05-01T23:58:30Z] [spark] launched refresh for 2026-05-01T12:00:00Z -> 2026-05-01T13:00:00Z (batch_id=rawdb-range-2026-05-01T12-20260501T235830Z)
+[2026-05-01T23:58:30Z] [spark] launched refresh for 2026-05-01T12:00:00Z -> 2026-05-01T13:00:00Z (batch_id=rawdb-range-2026-05-01T12-20260501T235830Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T00:00:27Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T00:00:27Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-qpk2m", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260501T235830Z", "batch_id": "rawdb-range-2026-05-01T12-20260501T235830Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3186}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-qpk2m", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260501T235830Z", "batch_id": "rawdb-range-2026-05-01T12-20260501T235830Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 76, "rows_written": 76, "write_mode": "append", "duration_ms": 2951}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-qpk2m", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260501T235830Z", "batch_id": "rawdb-range-2026-05-01T12-20260501T235830Z", "status": "healthy", "total_consumed": 1638, "parse_ok_count": 1638, "skipped_count": 0, "error_count": 0, "rows_written_total": 506, "rows_computed_total": 506, "jdbc_skipped": false, "started_at": "2026-05-01T23:59:02.720363+00:00", "completed_at": "2026-05-02T00:00:23.160419+00:00", "duration_ms": 80440, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T12:00:00+00:00", "window_end_utc": "2026-05-01T13:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-qpk2m", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260501T235830Z", "batch_id": "rawdb-range-2026-05-01T12-20260501T235830Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3186}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-qpk2m", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260501T235830Z", "batch_id": "rawdb-range-2026-05-01T12-20260501T235830Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 76, "rows_written": 76, "write_mode": "append", "duration_ms": 2951}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-qpk2m", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260501T235830Z", "batch_id": "rawdb-range-2026-05-01T12-20260501T235830Z", "status": "healthy", "total_consumed": 1638, "parse_ok_count": 1638, "skipped_count": 0, "error_count": 0, "rows_written_total": 506, "rows_computed_total": 506, "jdbc_skipped": false, "started_at": "2026-05-01T23:59:02.720363+00:00", "completed_at": "2026-05-02T00:00:23.160419+00:00", "duration_ms": 80440, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T12:00:00+00:00", "window_end_utc": "2026-05-01T13:00:00+00:00"}
+[2026-05-02T00:00:28Z] [refresh] stopped
+[2026-05-02T00:00:28Z] [refresh] stopped
+[2026-05-02T00:00:28Z] [seq] phase1 cycle run 1/2
+[2026-05-02T00:00:28Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-c5lb9
+NAME                          SUCCEEDED   REASON    STARTTIME   COMPLETIONTIME
+phase1-continuous-run-c5lb9   Unknown     Running   4s          
+[2026-05-02T00:00:32Z] [phase1] pipelinerun.tekton.dev/phase1-continuous-run-c5lb9 did not finish within 300s; cancelling before continuing
+NAME                          SUCCEEDED   REASON    STARTTIME   COMPLETIONTIME
+phase1-continuous-run-c5lb9   Unknown     Running   6s          
+[2026-05-02T00:00:34Z] [seq] phase1 run 1/2 failed; continuing to ingest/refresh
+[2026-05-02T00:00:34Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+[2026-05-02T00:00:35Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T00:00:35Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T00:00:35Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T00:00:36Z] [refresh] no dirty windows found; sleeping 30s
+[2026-05-02T00:00:36Z] [refresh] no dirty windows found; sleeping 30s
+[2026-05-02T00:00:37Z] [refresh] stop requested
+[2026-05-02T00:00:37Z] [refresh] stop requested
+[2026-05-02T00:00:37Z] [seq] completed
+[2026-05-02T00:07:02Z] [seq] namespace=ds551-2026-spring-a5f0d1 duration_sec=18000 phase1_runs_per_cycle=2 batch_size=500 phase1_timeout_sec=1200
+[2026-05-02T00:07:02Z] [seq] phase1 cycle run 1/2
+[2026-05-02T00:07:03Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-5z5c5
+pipelinerun.tekton.dev/phase1-continuous-run-5z5c5 condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-5z5c5   True        Succeeded   30s         1s
+[2026-05-02T00:07:33Z] [seq] phase1 cycle run 2/2
+[2026-05-02T00:07:33Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-mkrbp
+pipelinerun.tekton.dev/phase1-continuous-run-mkrbp condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-mkrbp   True        Succeeded   7m46s       0s
+[2026-05-02T00:15:19Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 79.4 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=119.2/s topics={'ds551-s26.team02.hospital_admissions': 137, 'ds551-s26.team02.symptom_reports': 363} event_hours={'2026-05-01T12:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=1000 inserted=1000 rate=203.3/s topics={'ds551-s26.team02.symptom_reports': 7, 'ds551-s26.team02.vaccination_records': 209, 'ds551-s26.team02.clinic_visits': 284} event_hours={'2026-05-01T12:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=77 poll_inserted=77 processed=1077 inserted=1077 rate=213.9/s topics={'ds551-s26.team02.clinic_visits': 77} event_hours={'2026-05-01T12:00:00+00:00': 77}
+[raw-ingest] idle empty_polls=1 elapsed_sec=6
+[raw-ingest] idle empty_polls=10 elapsed_sec=15
+[raw-ingest] idle empty_polls=20 elapsed_sec=25
+[raw-ingest] idle empty_polls=30 elapsed_sec=35
+[raw-ingest] idle empty_polls=40 elapsed_sec=45
+[raw-ingest] idle empty_polls=50 elapsed_sec=55
+[raw-ingest] stopped processed=1077 inserted=1077 rate=17.9/s
+[2026-05-02T00:16:41Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T00:16:41Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T00:16:41Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T00:16:42Z] [refresh] dirty windows selected:
+[2026-05-02T00:16:42Z] [refresh] dirty windows selected:
+[2026-05-02T00:16:42Z] [refresh]   2026-05-01T12:00:00Z
+[2026-05-02T00:16:42Z] [refresh]   2026-05-01T12:00:00Z
+[2026-05-02T00:16:43Z] [spark] launched refresh for 2026-05-01T12:00:00Z -> 2026-05-01T13:00:00Z (batch_id=rawdb-range-2026-05-01T12-20260502T001642Z)
+[2026-05-02T00:16:43Z] [spark] launched refresh for 2026-05-01T12:00:00Z -> 2026-05-01T13:00:00Z (batch_id=rawdb-range-2026-05-01T12-20260502T001642Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T00:18:43Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T00:18:43Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-4bp2j", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T001642Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T001642Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3154}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-4bp2j", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T001642Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T001642Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 88, "rows_written": 88, "write_mode": "append", "duration_ms": 2899}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-4bp2j", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T001642Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T001642Z", "status": "healthy", "total_consumed": 2715, "parse_ok_count": 2715, "skipped_count": 0, "error_count": 0, "rows_written_total": 770, "rows_computed_total": 770, "jdbc_skipped": false, "started_at": "2026-05-02T00:17:16.257959+00:00", "completed_at": "2026-05-02T00:18:37.781160+00:00", "duration_ms": 81523, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T12:00:00+00:00", "window_end_utc": "2026-05-01T13:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-4bp2j", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T001642Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T001642Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3154}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-4bp2j", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T001642Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T001642Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 88, "rows_written": 88, "write_mode": "append", "duration_ms": 2899}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-4bp2j", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T001642Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T001642Z", "status": "healthy", "total_consumed": 2715, "parse_ok_count": 2715, "skipped_count": 0, "error_count": 0, "rows_written_total": 770, "rows_computed_total": 770, "jdbc_skipped": false, "started_at": "2026-05-02T00:17:16.257959+00:00", "completed_at": "2026-05-02T00:18:37.781160+00:00", "duration_ms": 81523, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T12:00:00+00:00", "window_end_utc": "2026-05-01T13:00:00+00:00"}
+[2026-05-02T00:18:43Z] [refresh] stopped
+[2026-05-02T00:18:43Z] [refresh] stopped
+[2026-05-02T00:18:43Z] [seq] phase1 cycle run 1/2
+[2026-05-02T00:18:44Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-wsm4b
+pipelinerun.tekton.dev/phase1-continuous-run-wsm4b condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-wsm4b   True        Succeeded   5m27s       1s
+[2026-05-02T00:24:10Z] [seq] phase1 cycle run 2/2
+[2026-05-02T00:24:11Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-zt8p4
+pipelinerun.tekton.dev/phase1-continuous-run-zt8p4 condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-zt8p4   True        Succeeded   8m50s       0s
+[2026-05-02T00:33:01Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 99.7 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=124.5/s topics={'ds551-s26.team02.vaccination_records': 125, 'ds551-s26.team02.hospital_admissions': 112, 'ds551-s26.team02.symptom_reports': 263} event_hours={'2026-05-01T12:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=242 poll_inserted=242 processed=742 inserted=742 rate=169.3/s topics={'ds551-s26.team02.clinic_visits': 242} event_hours={'2026-05-01T12:00:00+00:00': 242}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=742 inserted=742 rate=12.3/s
+[2026-05-02T00:34:23Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T00:34:23Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T00:34:23Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T00:34:24Z] [refresh] dirty windows selected:
+[2026-05-02T00:34:24Z] [refresh] dirty windows selected:
+[2026-05-02T00:34:24Z] [refresh]   2026-05-01T12:00:00Z
+[2026-05-02T00:34:24Z] [refresh]   2026-05-01T12:00:00Z
+[2026-05-02T00:34:25Z] [spark] launched refresh for 2026-05-01T12:00:00Z -> 2026-05-01T13:00:00Z (batch_id=rawdb-range-2026-05-01T12-20260502T003424Z)
+[2026-05-02T00:34:25Z] [spark] launched refresh for 2026-05-01T12:00:00Z -> 2026-05-01T13:00:00Z (batch_id=rawdb-range-2026-05-01T12-20260502T003424Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T00:36:24Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T00:36:24Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-b2p6w", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T003424Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T003424Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3658}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-b2p6w", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T003424Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T003424Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 89, "rows_written": 89, "write_mode": "append", "duration_ms": 3074}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-b2p6w", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T003424Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T003424Z", "status": "healthy", "total_consumed": 3457, "parse_ok_count": 3457, "skipped_count": 0, "error_count": 0, "rows_written_total": 1010, "rows_computed_total": 1010, "jdbc_skipped": false, "started_at": "2026-05-02T00:34:56.862024+00:00", "completed_at": "2026-05-02T00:36:19.803221+00:00", "duration_ms": 82941, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T12:00:00+00:00", "window_end_utc": "2026-05-01T13:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-b2p6w", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T003424Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T003424Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3658}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-b2p6w", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T003424Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T003424Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 89, "rows_written": 89, "write_mode": "append", "duration_ms": 3074}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-b2p6w", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T003424Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T003424Z", "status": "healthy", "total_consumed": 3457, "parse_ok_count": 3457, "skipped_count": 0, "error_count": 0, "rows_written_total": 1010, "rows_computed_total": 1010, "jdbc_skipped": false, "started_at": "2026-05-02T00:34:56.862024+00:00", "completed_at": "2026-05-02T00:36:19.803221+00:00", "duration_ms": 82941, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T12:00:00+00:00", "window_end_utc": "2026-05-01T13:00:00+00:00"}
+[2026-05-02T00:36:24Z] [refresh] stopped
+[2026-05-02T00:36:24Z] [refresh] stopped
+[2026-05-02T00:36:24Z] [seq] phase1 cycle run 1/2
+[2026-05-02T00:36:25Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-2lzvr
+pipelinerun.tekton.dev/phase1-continuous-run-2lzvr condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-2lzvr   True        Succeeded   5m30s       1s
+[2026-05-02T00:41:55Z] [seq] phase1 cycle run 2/2
+[2026-05-02T00:41:55Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-tv6rf
+pipelinerun.tekton.dev/phase1-continuous-run-tv6rf condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-tv6rf   True        Succeeded   9m9s        1s
+[2026-05-02T00:51:04Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 92.7 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=120.6/s topics={'ds551-s26.team02.vaccination_records': 110, 'ds551-s26.team02.hospital_admissions': 94, 'ds551-s26.team02.symptom_reports': 230, 'ds551-s26.team02.clinic_visits': 66} event_hours={'2026-05-01T12:00:00+00:00': 471, '2026-05-01T18:00:00+00:00': 29}
+[raw-ingest] committed poll_processed=219 poll_inserted=219 processed=719 inserted=719 rate=159.9/s topics={'ds551-s26.team02.clinic_visits': 219} event_hours={'2026-05-01T12:00:00+00:00': 199, '2026-05-01T18:00:00+00:00': 20}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=719 inserted=719 rate=11.9/s
+[2026-05-02T00:52:26Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T00:52:26Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T00:52:26Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T00:52:27Z] [refresh] dirty windows selected:
+[2026-05-02T00:52:27Z] [refresh] dirty windows selected:
+[2026-05-02T00:52:27Z] [refresh]   2026-05-01T12:00:00Z
+[2026-05-02T00:52:27Z] [refresh]   2026-05-01T12:00:00Z
+[2026-05-02T00:52:27Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T00:52:27Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T00:52:28Z] [spark] launched refresh for 2026-05-01T12:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T12-20260502T005227Z)
+[2026-05-02T00:52:28Z] [spark] launched refresh for 2026-05-01T12:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T12-20260502T005227Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T00:54:28Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T00:54:28Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-9p8mz", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T005227Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T005227Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 89, "rows_written": 89, "write_mode": "append", "duration_ms": 3390}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-9p8mz", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T005227Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T005227Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 97, "rows_written": 97, "write_mode": "append", "duration_ms": 2879}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-9p8mz", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T005227Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T005227Z", "status": "healthy", "total_consumed": 4176, "parse_ok_count": 4176, "skipped_count": 0, "error_count": 0, "rows_written_total": 1348, "rows_computed_total": 1348, "jdbc_skipped": false, "started_at": "2026-05-02T00:53:01.389906+00:00", "completed_at": "2026-05-02T00:54:23.361836+00:00", "duration_ms": 81972, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T12:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-9p8mz", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T005227Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T005227Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 89, "rows_written": 89, "write_mode": "append", "duration_ms": 3390}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-9p8mz", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T005227Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T005227Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 97, "rows_written": 97, "write_mode": "append", "duration_ms": 2879}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-9p8mz", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T005227Z", "batch_id": "rawdb-range-2026-05-01T12-20260502T005227Z", "status": "healthy", "total_consumed": 4176, "parse_ok_count": 4176, "skipped_count": 0, "error_count": 0, "rows_written_total": 1348, "rows_computed_total": 1348, "jdbc_skipped": false, "started_at": "2026-05-02T00:53:01.389906+00:00", "completed_at": "2026-05-02T00:54:23.361836+00:00", "duration_ms": 81972, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T12:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T00:54:29Z] [refresh] stopped
+[2026-05-02T00:54:29Z] [refresh] stopped
+[2026-05-02T00:54:29Z] [seq] phase1 cycle run 1/2
+[2026-05-02T00:54:29Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-t4zmm
+pipelinerun.tekton.dev/phase1-continuous-run-t4zmm condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-t4zmm   True        Succeeded   7m33s       1s
+[2026-05-02T01:02:01Z] [seq] phase1 cycle run 2/2
+[2026-05-02T01:02:02Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-88tgh
+pipelinerun.tekton.dev/phase1-continuous-run-88tgh condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-88tgh   True        Succeeded   12m         0s
+[2026-05-02T01:14:56Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 99.2 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=122.4/s topics={'ds551-s26.team02.hospital_admissions': 108, 'ds551-s26.team02.vaccination_records': 140, 'ds551-s26.team02.symptom_reports': 252} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=237 poll_inserted=237 processed=737 inserted=737 rate=165.3/s topics={'ds551-s26.team02.clinic_visits': 237} event_hours={'2026-05-01T18:00:00+00:00': 237}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=737 inserted=737 rate=12.2/s
+[2026-05-02T01:16:17Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T01:16:18Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T01:16:18Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T01:16:18Z] [refresh] dirty windows selected:
+[2026-05-02T01:16:18Z] [refresh] dirty windows selected:
+[2026-05-02T01:16:18Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T01:16:18Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T01:16:19Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T011618Z)
+[2026-05-02T01:16:19Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T011618Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T01:18:14Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T01:18:14Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-m9kz2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T011618Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T011618Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3017}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-m9kz2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T011618Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T011618Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 73, "rows_written": 73, "write_mode": "append", "duration_ms": 2806}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-m9kz2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T011618Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T011618Z", "status": "healthy", "total_consumed": 786, "parse_ok_count": 786, "skipped_count": 0, "error_count": 0, "rows_written_total": 465, "rows_computed_total": 465, "jdbc_skipped": false, "started_at": "2026-05-02T01:16:51.796806+00:00", "completed_at": "2026-05-02T01:18:09.616339+00:00", "duration_ms": 77819, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-m9kz2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T011618Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T011618Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3017}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-m9kz2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T011618Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T011618Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 73, "rows_written": 73, "write_mode": "append", "duration_ms": 2806}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-m9kz2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T011618Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T011618Z", "status": "healthy", "total_consumed": 786, "parse_ok_count": 786, "skipped_count": 0, "error_count": 0, "rows_written_total": 465, "rows_computed_total": 465, "jdbc_skipped": false, "started_at": "2026-05-02T01:16:51.796806+00:00", "completed_at": "2026-05-02T01:18:09.616339+00:00", "duration_ms": 77819, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T01:18:14Z] [refresh] stopped
+[2026-05-02T01:18:14Z] [refresh] stopped
+[2026-05-02T01:18:14Z] [seq] phase1 cycle run 1/2
+[2026-05-02T01:18:14Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-74mql
+pipelinerun.tekton.dev/phase1-continuous-run-74mql condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-74mql   True        Succeeded   9m38s       1s
+[2026-05-02T01:27:52Z] [seq] phase1 cycle run 2/2
+[2026-05-02T01:27:53Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-2d66c
+pipelinerun.tekton.dev/phase1-continuous-run-2d66c condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-2d66c   True        Succeeded   13m         1s
+[2026-05-02T01:40:54Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 93.3 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=114.4/s topics={'ds551-s26.team02.symptom_reports': 262, 'ds551-s26.team02.clinic_visits': 236, 'ds551-s26.team02.hospital_admissions': 2} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=226 poll_inserted=226 processed=726 inserted=726 rate=146.7/s topics={'ds551-s26.team02.hospital_admissions': 100, 'ds551-s26.team02.vaccination_records': 126} event_hours={'2026-05-01T18:00:00+00:00': 226}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=25
+[raw-ingest] idle empty_polls=30 elapsed_sec=35
+[raw-ingest] idle empty_polls=40 elapsed_sec=45
+[raw-ingest] idle empty_polls=50 elapsed_sec=55
+[raw-ingest] stopped processed=726 inserted=726 rate=12.0/s
+[2026-05-02T01:42:17Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T01:42:17Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T01:42:17Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T01:42:18Z] [refresh] dirty windows selected:
+[2026-05-02T01:42:18Z] [refresh] dirty windows selected:
+[2026-05-02T01:42:18Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T01:42:18Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T01:42:19Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T014218Z)
+[2026-05-02T01:42:19Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T014218Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T01:44:16Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T01:44:16Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-t4ql4", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T014218Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T014218Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2799}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-t4ql4", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T014218Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T014218Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 84, "rows_written": 84, "write_mode": "append", "duration_ms": 2653}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-t4ql4", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T014218Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T014218Z", "status": "healthy", "total_consumed": 1512, "parse_ok_count": 1512, "skipped_count": 0, "error_count": 0, "rows_written_total": 708, "rows_computed_total": 708, "jdbc_skipped": false, "started_at": "2026-05-02T01:42:53.699465+00:00", "completed_at": "2026-05-02T01:44:11.814130+00:00", "duration_ms": 78114, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-t4ql4", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T014218Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T014218Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2799}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-t4ql4", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T014218Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T014218Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 84, "rows_written": 84, "write_mode": "append", "duration_ms": 2653}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-t4ql4", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T014218Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T014218Z", "status": "healthy", "total_consumed": 1512, "parse_ok_count": 1512, "skipped_count": 0, "error_count": 0, "rows_written_total": 708, "rows_computed_total": 708, "jdbc_skipped": false, "started_at": "2026-05-02T01:42:53.699465+00:00", "completed_at": "2026-05-02T01:44:11.814130+00:00", "duration_ms": 78114, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T01:44:16Z] [refresh] stopped
+[2026-05-02T01:44:16Z] [refresh] stopped
+[2026-05-02T01:44:16Z] [seq] phase1 cycle run 1/2
+[2026-05-02T01:44:17Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-hgvw2
+pipelinerun.tekton.dev/phase1-continuous-run-hgvw2 condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-hgvw2   True        Succeeded   9m38s       1s
+[2026-05-02T01:53:54Z] [seq] phase1 cycle run 2/2
+[2026-05-02T01:53:55Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-mbtz5
+pipelinerun.tekton.dev/phase1-continuous-run-mbtz5 condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-mbtz5   True        Succeeded   13m         1s
+[2026-05-02T02:06:57Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 91.9 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=120.0/s topics={'ds551-s26.team02.clinic_visits': 236, 'ds551-s26.team02.hospital_admissions': 97, 'ds551-s26.team02.symptom_reports': 167} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=215 poll_inserted=215 processed=715 inserted=715 rate=159.9/s topics={'ds551-s26.team02.symptom_reports': 77, 'ds551-s26.team02.vaccination_records': 138} event_hours={'2026-05-01T18:00:00+00:00': 215}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=715 inserted=715 rate=11.8/s
+[2026-05-02T02:08:18Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T02:08:18Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T02:08:18Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T02:08:19Z] [refresh] dirty windows selected:
+[2026-05-02T02:08:19Z] [refresh] dirty windows selected:
+[2026-05-02T02:08:19Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T02:08:19Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T02:08:20Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T020819Z)
+[2026-05-02T02:08:20Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T020819Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T02:10:16Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T02:10:16Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-twcf6", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T020819Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T020819Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2998}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-twcf6", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T020819Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T020819Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 87, "rows_written": 87, "write_mode": "append", "duration_ms": 2545}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-twcf6", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T020819Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T020819Z", "status": "healthy", "total_consumed": 2227, "parse_ok_count": 2227, "skipped_count": 0, "error_count": 0, "rows_written_total": 945, "rows_computed_total": 945, "jdbc_skipped": false, "started_at": "2026-05-02T02:08:51.832455+00:00", "completed_at": "2026-05-02T02:10:12.406290+00:00", "duration_ms": 80573, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-twcf6", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T020819Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T020819Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2998}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-twcf6", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T020819Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T020819Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 87, "rows_written": 87, "write_mode": "append", "duration_ms": 2545}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-twcf6", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T020819Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T020819Z", "status": "healthy", "total_consumed": 2227, "parse_ok_count": 2227, "skipped_count": 0, "error_count": 0, "rows_written_total": 945, "rows_computed_total": 945, "jdbc_skipped": false, "started_at": "2026-05-02T02:08:51.832455+00:00", "completed_at": "2026-05-02T02:10:12.406290+00:00", "duration_ms": 80573, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T02:10:17Z] [refresh] stopped
+[2026-05-02T02:10:17Z] [refresh] stopped
+[2026-05-02T02:10:17Z] [seq] phase1 cycle run 1/2
+[2026-05-02T02:10:17Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-jpp8l
+pipelinerun.tekton.dev/phase1-continuous-run-jpp8l condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-jpp8l   True        Succeeded   9m33s       1s
+[2026-05-02T02:19:50Z] [seq] phase1 cycle run 2/2
+[2026-05-02T02:19:50Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-c92wr
+pipelinerun.tekton.dev/phase1-continuous-run-c92wr condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-c92wr   True        Succeeded   12m         1s
+[2026-05-02T02:32:37Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 66.6 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=120.6/s topics={'ds551-s26.team02.symptom_reports': 248, 'ds551-s26.team02.hospital_admissions': 101, 'ds551-s26.team02.vaccination_records': 148, 'ds551-s26.team02.clinic_visits': 3} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=220 poll_inserted=220 processed=720 inserted=720 rate=161.3/s topics={'ds551-s26.team02.clinic_visits': 220} event_hours={'2026-05-01T18:00:00+00:00': 220}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=720 inserted=720 rate=11.9/s
+[2026-05-02T02:33:57Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T02:33:57Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T02:33:57Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T02:33:58Z] [refresh] dirty windows selected:
+[2026-05-02T02:33:58Z] [refresh] dirty windows selected:
+[2026-05-02T02:33:58Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T02:33:58Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T02:33:59Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T023358Z)
+[2026-05-02T02:33:59Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T023358Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T02:35:55Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T02:35:55Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-c8f6n", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T023358Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T023358Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2950}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-c8f6n", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T023358Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T023358Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 89, "rows_written": 89, "write_mode": "append", "duration_ms": 2882}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-c8f6n", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T023358Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T023358Z", "status": "healthy", "total_consumed": 2947, "parse_ok_count": 2947, "skipped_count": 0, "error_count": 0, "rows_written_total": 1165, "rows_computed_total": 1165, "jdbc_skipped": false, "started_at": "2026-05-02T02:34:30.880999+00:00", "completed_at": "2026-05-02T02:35:51.210195+00:00", "duration_ms": 80329, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-c8f6n", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T023358Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T023358Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2950}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-c8f6n", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T023358Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T023358Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 89, "rows_written": 89, "write_mode": "append", "duration_ms": 2882}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-c8f6n", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T023358Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T023358Z", "status": "healthy", "total_consumed": 2947, "parse_ok_count": 2947, "skipped_count": 0, "error_count": 0, "rows_written_total": 1165, "rows_computed_total": 1165, "jdbc_skipped": false, "started_at": "2026-05-02T02:34:30.880999+00:00", "completed_at": "2026-05-02T02:35:51.210195+00:00", "duration_ms": 80329, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T02:35:55Z] [refresh] stopped
+[2026-05-02T02:35:55Z] [refresh] stopped
+[2026-05-02T02:35:55Z] [seq] phase1 cycle run 1/2
+[2026-05-02T02:35:56Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-knv2c
+pipelinerun.tekton.dev/phase1-continuous-run-knv2c condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-knv2c   True        Succeeded   9m35s       0s
+[2026-05-02T02:45:31Z] [seq] phase1 cycle run 2/2
+[2026-05-02T02:45:31Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-99s26
+pipelinerun.tekton.dev/phase1-continuous-run-99s26 condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-99s26   True        Succeeded   12m         0s
+[2026-05-02T02:58:30Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 93.4 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=115.2/s topics={'ds551-s26.team02.hospital_admissions': 118, 'ds551-s26.team02.vaccination_records': 122, 'ds551-s26.team02.clinic_visits': 260} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=231 poll_inserted=231 processed=731 inserted=731 rate=153.7/s topics={'ds551-s26.team02.clinic_visits': 7, 'ds551-s26.team02.symptom_reports': 224} event_hours={'2026-05-01T18:00:00+00:00': 231}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=731 inserted=731 rate=12.0/s
+[2026-05-02T03:00:04Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T03:00:05Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T03:00:05Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T03:00:06Z] [refresh] dirty windows selected:
+[2026-05-02T03:00:06Z] [refresh] dirty windows selected:
+[2026-05-02T03:00:06Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T03:00:06Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T03:00:06Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T030006Z)
+[2026-05-02T03:00:06Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T030006Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T03:02:06Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T03:02:06Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-l2m8r", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T030006Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T030006Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3072}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-l2m8r", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T030006Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T030006Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 2799}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-l2m8r", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T030006Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T030006Z", "status": "healthy", "total_consumed": 3678, "parse_ok_count": 3678, "skipped_count": 0, "error_count": 0, "rows_written_total": 1428, "rows_computed_total": 1428, "jdbc_skipped": false, "started_at": "2026-05-02T03:00:42.018608+00:00", "completed_at": "2026-05-02T03:02:02.865396+00:00", "duration_ms": 80846, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-l2m8r", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T030006Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T030006Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3072}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-l2m8r", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T030006Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T030006Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 2799}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-l2m8r", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T030006Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T030006Z", "status": "healthy", "total_consumed": 3678, "parse_ok_count": 3678, "skipped_count": 0, "error_count": 0, "rows_written_total": 1428, "rows_computed_total": 1428, "jdbc_skipped": false, "started_at": "2026-05-02T03:00:42.018608+00:00", "completed_at": "2026-05-02T03:02:02.865396+00:00", "duration_ms": 80846, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T03:02:06Z] [refresh] stopped
+[2026-05-02T03:02:06Z] [refresh] stopped
+[2026-05-02T03:02:06Z] [seq] phase1 cycle run 1/2
+[2026-05-02T03:02:07Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-5rpdd
+pipelinerun.tekton.dev/phase1-continuous-run-5rpdd condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-5rpdd   True        Succeeded   9m9s        1s
+[2026-05-02T03:11:16Z] [seq] phase1 cycle run 2/2
+[2026-05-02T03:11:16Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-jk9lh
+pipelinerun.tekton.dev/phase1-continuous-run-jk9lh condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-jk9lh   True        Succeeded   12m         0s
+[2026-05-02T03:24:09Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 91.2 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=120.9/s topics={'ds551-s26.team02.vaccination_records': 112, 'ds551-s26.team02.symptom_reports': 254, 'ds551-s26.team02.hospital_admissions': 131, 'ds551-s26.team02.clinic_visits': 3} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=225 poll_inserted=225 processed=725 inserted=725 rate=162.0/s topics={'ds551-s26.team02.clinic_visits': 225} event_hours={'2026-05-01T18:00:00+00:00': 225}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=725 inserted=725 rate=12.0/s
+[2026-05-02T03:25:29Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T03:25:29Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T03:25:29Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T03:25:30Z] [refresh] dirty windows selected:
+[2026-05-02T03:25:30Z] [refresh] dirty windows selected:
+[2026-05-02T03:25:30Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T03:25:30Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T03:25:31Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T032530Z)
+[2026-05-02T03:25:31Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T032530Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T03:27:26Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T03:27:26Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-ldmqr", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T032530Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T032530Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3210}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-ldmqr", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T032530Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T032530Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 3023}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-ldmqr", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T032530Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T032530Z", "status": "healthy", "total_consumed": 4403, "parse_ok_count": 4403, "skipped_count": 0, "error_count": 0, "rows_written_total": 1655, "rows_computed_total": 1655, "jdbc_skipped": false, "started_at": "2026-05-02T03:26:02.812238+00:00", "completed_at": "2026-05-02T03:27:23.065790+00:00", "duration_ms": 80253, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-ldmqr", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T032530Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T032530Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3210}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-ldmqr", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T032530Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T032530Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 3023}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-ldmqr", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T032530Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T032530Z", "status": "healthy", "total_consumed": 4403, "parse_ok_count": 4403, "skipped_count": 0, "error_count": 0, "rows_written_total": 1655, "rows_computed_total": 1655, "jdbc_skipped": false, "started_at": "2026-05-02T03:26:02.812238+00:00", "completed_at": "2026-05-02T03:27:23.065790+00:00", "duration_ms": 80253, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T03:27:26Z] [refresh] stopped
+[2026-05-02T03:27:26Z] [refresh] stopped
+[2026-05-02T03:27:26Z] [seq] phase1 cycle run 1/2
+[2026-05-02T03:27:27Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-dqsdl
+pipelinerun.tekton.dev/phase1-continuous-run-dqsdl condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-dqsdl   True        Succeeded   9m36s       1s
+[2026-05-02T03:37:03Z] [seq] phase1 cycle run 2/2
+[2026-05-02T03:37:03Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-gm2gs
+pipelinerun.tekton.dev/phase1-continuous-run-gm2gs condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-gm2gs   True        Succeeded   13m         1s
+[2026-05-02T03:50:09Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 86.7 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=117.8/s topics={'ds551-s26.team02.clinic_visits': 249, 'ds551-s26.team02.vaccination_records': 118, 'ds551-s26.team02.hospital_admissions': 121, 'ds551-s26.team02.symptom_reports': 12} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=229 poll_inserted=229 processed=729 inserted=729 rate=147.0/s topics={'ds551-s26.team02.symptom_reports': 229} event_hours={'2026-05-01T18:00:00+00:00': 229}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=25
+[raw-ingest] idle empty_polls=30 elapsed_sec=35
+[raw-ingest] idle empty_polls=40 elapsed_sec=45
+[raw-ingest] idle empty_polls=50 elapsed_sec=55
+[raw-ingest] stopped processed=729 inserted=729 rate=12.1/s
+[2026-05-02T03:51:29Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T03:51:29Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T03:51:29Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T03:51:30Z] [refresh] dirty windows selected:
+[2026-05-02T03:51:30Z] [refresh] dirty windows selected:
+[2026-05-02T03:51:30Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T03:51:30Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T03:51:30Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T035130Z)
+[2026-05-02T03:51:30Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T035130Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T03:53:30Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T03:53:30Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-tvg2d", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T035130Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T035130Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2990}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-tvg2d", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T035130Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T035130Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 2971}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-tvg2d", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T035130Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T035130Z", "status": "healthy", "total_consumed": 5132, "parse_ok_count": 5132, "skipped_count": 0, "error_count": 0, "rows_written_total": 1901, "rows_computed_total": 1901, "jdbc_skipped": false, "started_at": "2026-05-02T03:52:02.265977+00:00", "completed_at": "2026-05-02T03:53:26.368588+00:00", "duration_ms": 84102, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-tvg2d", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T035130Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T035130Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2990}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-tvg2d", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T035130Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T035130Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 2971}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-tvg2d", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T035130Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T035130Z", "status": "healthy", "total_consumed": 5132, "parse_ok_count": 5132, "skipped_count": 0, "error_count": 0, "rows_written_total": 1901, "rows_computed_total": 1901, "jdbc_skipped": false, "started_at": "2026-05-02T03:52:02.265977+00:00", "completed_at": "2026-05-02T03:53:26.368588+00:00", "duration_ms": 84102, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T03:53:30Z] [refresh] stopped
+[2026-05-02T03:53:30Z] [refresh] stopped
+[2026-05-02T03:53:30Z] [seq] phase1 cycle run 1/2
+[2026-05-02T03:53:31Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-2ptbd
+pipelinerun.tekton.dev/phase1-continuous-run-2ptbd condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-2ptbd   True        Succeeded   9m39s       0s
+[2026-05-02T04:03:10Z] [seq] phase1 cycle run 2/2
+[2026-05-02T04:03:10Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-cjxns
+pipelinerun.tekton.dev/phase1-continuous-run-cjxns condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-cjxns   True        Succeeded   13m         1s
+[2026-05-02T04:16:19Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 96.0 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=123.9/s topics={'ds551-s26.team02.symptom_reports': 243, 'ds551-s26.team02.clinic_visits': 249, 'ds551-s26.team02.hospital_admissions': 8} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=231 poll_inserted=231 processed=731 inserted=731 rate=168.6/s topics={'ds551-s26.team02.hospital_admissions': 100, 'ds551-s26.team02.vaccination_records': 131} event_hours={'2026-05-01T18:00:00+00:00': 231}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=731 inserted=731 rate=12.1/s
+[2026-05-02T04:17:40Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T04:17:41Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T04:17:41Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T04:17:42Z] [refresh] dirty windows selected:
+[2026-05-02T04:17:42Z] [refresh] dirty windows selected:
+[2026-05-02T04:17:42Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T04:17:42Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T04:17:42Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T041742Z)
+[2026-05-02T04:17:42Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T041742Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T04:19:39Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T04:19:39Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-hw2zs", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T041742Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T041742Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2987}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-hw2zs", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T041742Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T041742Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 2984}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-hw2zs", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T041742Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T041742Z", "status": "healthy", "total_consumed": 5863, "parse_ok_count": 5863, "skipped_count": 0, "error_count": 0, "rows_written_total": 2141, "rows_computed_total": 2141, "jdbc_skipped": false, "started_at": "2026-05-02T04:18:11.926773+00:00", "completed_at": "2026-05-02T04:19:35.597249+00:00", "duration_ms": 83670, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-hw2zs", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T041742Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T041742Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2987}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-hw2zs", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T041742Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T041742Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 2984}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-hw2zs", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T041742Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T041742Z", "status": "healthy", "total_consumed": 5863, "parse_ok_count": 5863, "skipped_count": 0, "error_count": 0, "rows_written_total": 2141, "rows_computed_total": 2141, "jdbc_skipped": false, "started_at": "2026-05-02T04:18:11.926773+00:00", "completed_at": "2026-05-02T04:19:35.597249+00:00", "duration_ms": 83670, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T04:19:39Z] [refresh] stopped
+[2026-05-02T04:19:39Z] [refresh] stopped
+[2026-05-02T04:19:39Z] [seq] phase1 cycle run 1/2
+[2026-05-02T04:19:39Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-kgzff
+pipelinerun.tekton.dev/phase1-continuous-run-kgzff condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-kgzff   True        Succeeded   9m39s       1s
+[2026-05-02T04:29:18Z] [seq] phase1 cycle run 2/2
+[2026-05-02T04:29:18Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-m655p
+pipelinerun.tekton.dev/phase1-continuous-run-m655p condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-m655p   True        Succeeded   12m         0s
+[2026-05-02T04:42:14Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 96.0 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=123.4/s topics={'ds551-s26.team02.vaccination_records': 131, 'ds551-s26.team02.clinic_visits': 241, 'ds551-s26.team02.symptom_reports': 128} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=223 poll_inserted=223 processed=723 inserted=723 rate=166.8/s topics={'ds551-s26.team02.symptom_reports': 119, 'ds551-s26.team02.hospital_admissions': 104} event_hours={'2026-05-01T18:00:00+00:00': 223}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=723 inserted=723 rate=12.0/s
+[2026-05-02T04:43:36Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T04:43:37Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T04:43:37Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T04:43:38Z] [refresh] dirty windows selected:
+[2026-05-02T04:43:38Z] [refresh] dirty windows selected:
+[2026-05-02T04:43:38Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T04:43:38Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T04:43:38Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T044338Z)
+[2026-05-02T04:43:38Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T044338Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T04:45:39Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T04:45:39Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-vz6v2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T044338Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T044338Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3372}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-vz6v2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T044338Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T044338Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 3026}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-vz6v2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T044338Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T044338Z", "status": "healthy", "total_consumed": 6586, "parse_ok_count": 6586, "skipped_count": 0, "error_count": 0, "rows_written_total": 2373, "rows_computed_total": 2373, "jdbc_skipped": false, "started_at": "2026-05-02T04:44:10.804916+00:00", "completed_at": "2026-05-02T04:45:35.103097+00:00", "duration_ms": 84298, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-vz6v2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T044338Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T044338Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 3372}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-vz6v2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T044338Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T044338Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 3026}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-vz6v2", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T044338Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T044338Z", "status": "healthy", "total_consumed": 6586, "parse_ok_count": 6586, "skipped_count": 0, "error_count": 0, "rows_written_total": 2373, "rows_computed_total": 2373, "jdbc_skipped": false, "started_at": "2026-05-02T04:44:10.804916+00:00", "completed_at": "2026-05-02T04:45:35.103097+00:00", "duration_ms": 84298, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T04:45:40Z] [refresh] stopped
+[2026-05-02T04:45:40Z] [refresh] stopped
+[2026-05-02T04:45:40Z] [seq] phase1 cycle run 1/2
+[2026-05-02T04:45:40Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-qmpx2
+pipelinerun.tekton.dev/phase1-continuous-run-qmpx2 condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-qmpx2   True        Succeeded   9m35s       1s
+[2026-05-02T04:55:15Z] [seq] phase1 cycle run 2/2
+[2026-05-02T04:55:15Z] [phase1] started pipelinerun.tekton.dev/phase1-continuous-run-ghs8k
+pipelinerun.tekton.dev/phase1-continuous-run-ghs8k condition met
+NAME                          SUCCEEDED   REASON      STARTTIME   COMPLETIONTIME
+phase1-continuous-run-ghs8k   True        Succeeded   13m         0s
+[2026-05-02T05:08:18Z] [seq] running raw ingest catch-up (RUN_SECONDS=60, MAX_MESSAGES=0)
+pod/raw-typed-ingester created
+Started pod/raw-typed-ingester in namespace ds551-2026-spring-a5f0d1
+Use: bash scripts/run-raw-typed-ingester.sh logs
+pod/raw-typed-ingester condition met
+Collecting kafka-python-ng
+  Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl.metadata (9.7 kB)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Downloading kafka_python_ng-2.2.3-py2.py3-none-any.whl (232 kB)
+Downloading psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 89.9 MB/s eta 0:00:00
+Installing collected packages: psycopg2-binary, kafka-python-ng
+Successfully installed kafka-python-ng-2.2.3 psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1
+[notice] To update, run: pip install --upgrade pip
+[raw-ingest] starting bootstrap=kafka:9092 group_id=team02-raw-typed-ingest topics=ds551-s26.team02.symptom_reports,ds551-s26.team02.clinic_visits,ds551-s26.team02.hospital_admissions,ds551-s26.team02.vaccination_records auto_offset_reset=latest run_seconds=60 max_messages=0 flush_every=200
+[raw-ingest] idle empty_polls=1 elapsed_sec=3
+[raw-ingest] committed poll_processed=500 poll_inserted=500 processed=500 inserted=500 rate=122.6/s topics={'ds551-s26.team02.hospital_admissions': 98, 'ds551-s26.team02.symptom_reports': 239, 'ds551-s26.team02.vaccination_records': 134, 'ds551-s26.team02.clinic_visits': 29} event_hours={'2026-05-01T18:00:00+00:00': 500}
+[raw-ingest] committed poll_processed=227 poll_inserted=227 processed=727 inserted=727 rate=164.0/s topics={'ds551-s26.team02.clinic_visits': 227} event_hours={'2026-05-01T18:00:00+00:00': 227}
+[raw-ingest] idle empty_polls=1 elapsed_sec=5
+[raw-ingest] idle empty_polls=10 elapsed_sec=14
+[raw-ingest] idle empty_polls=20 elapsed_sec=24
+[raw-ingest] idle empty_polls=30 elapsed_sec=34
+[raw-ingest] idle empty_polls=40 elapsed_sec=44
+[raw-ingest] idle empty_polls=50 elapsed_sec=54
+[raw-ingest] stopped processed=727 inserted=727 rate=12.0/s
+[2026-05-02T05:09:41Z] [seq] running one rawdb feature refresh cycle
+[2026-05-02T05:09:41Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T05:09:41Z] [refresh] namespace=ds551-2026-spring-a5f0d1 mode=raw_db max_windows=8
+[2026-05-02T05:09:42Z] [refresh] dirty windows selected:
+[2026-05-02T05:09:42Z] [refresh] dirty windows selected:
+[2026-05-02T05:09:42Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T05:09:42Z] [refresh]   2026-05-01T18:00:00Z
+[2026-05-02T05:09:43Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T050942Z)
+[2026-05-02T05:09:43Z] [spark] launched refresh for 2026-05-01T18:00:00Z -> 2026-05-01T19:00:00Z (batch_id=rawdb-range-2026-05-01T18-20260502T050942Z)
+job.batch/epidemic-spark-etl condition met
+job.batch/epidemic-spark-etl condition met
+[2026-05-02T05:11:42Z] [spark] analytics logs for epidemic-spark-etl
+[2026-05-02T05:11:42Z] [spark] analytics logs for epidemic-spark-etl
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-cvtgf", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T050942Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T050942Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2815}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-cvtgf", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T050942Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T050942Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 2696}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-cvtgf", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T050942Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T050942Z", "status": "healthy", "total_consumed": 7313, "parse_ok_count": 7313, "skipped_count": 0, "error_count": 0, "rows_written_total": 2619, "rows_computed_total": 2619, "jdbc_skipped": false, "started_at": "2026-05-02T05:10:15.196213+00:00", "completed_at": "2026-05-02T05:11:37.331907+00:00", "duration_ms": 82135, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-cvtgf", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T050942Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T050942Z", "analytic_name": "feature_symptom_hourly", "target_table": "feature_symptom_hourly", "rows_computed": 60, "rows_written": 60, "write_mode": "append", "duration_ms": 2815}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-cvtgf", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "db_write", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T050942Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T050942Z", "analytic_name": "feature_vaccination_hourly", "target_table": "feature_vaccination_hourly", "rows_computed": 90, "rows_written": 90, "write_mode": "append", "duration_ms": 2696}
+[ANALYTICS] {"k8s_pod": "epidemic-spark-etl-cvtgf", "k8s_namespace": "ds551-2026-spring-a5f0d1", "task": "spark-etl", "phase": "summary", "outcome": "valid", "reason_code": null, "run_id": "rawdb-refresh-20260502T050942Z", "batch_id": "rawdb-range-2026-05-01T18-20260502T050942Z", "status": "healthy", "total_consumed": 7313, "parse_ok_count": 7313, "skipped_count": 0, "error_count": 0, "rows_written_total": 2619, "rows_computed_total": 2619, "jdbc_skipped": false, "started_at": "2026-05-02T05:10:15.196213+00:00", "completed_at": "2026-05-02T05:11:37.331907+00:00", "duration_ms": 82135, "empty_topics": [], "skip_rate_pct": 0.0, "window_start_utc": "2026-05-01T18:00:00+00:00", "window_end_utc": "2026-05-01T19:00:00+00:00"}
+[2026-05-02T05:11:43Z] [refresh] stopped
+[2026-05-02T05:11:43Z] [refresh] stopped
+[2026-05-02T05:11:43Z] [seq] completed
+scripts/run-phase1-rawdb-sequenced.sh: line 152: unexpected EOF while looking for matching `"'

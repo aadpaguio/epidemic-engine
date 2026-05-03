@@ -95,6 +95,10 @@ spec:
                   fieldPath: metadata.namespace
             - name: REQUIRE_WINDOW_UTC
               value: "true"
+            # Read landed typed events from Timescale (`raw_typed_events`) instead of Kafka batches.
+            # Requires rows ingested by `scripts/ingest-typed-events-to-db.py` (or equivalent).
+            - name: FEATURE_SOURCE_MODE
+              value: "raw_db"
           volumeMounts:
             - name: etl-script
               mountPath: /opt/epidemic
