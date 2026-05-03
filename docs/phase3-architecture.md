@@ -46,6 +46,17 @@ team02 namespace
   │   └─ Headless Service: timescaledb-headless
   │
   └─ Phase 3 Consumers
-      ├─ Dashboard / notebooks
-      ├─ Alerting service
+      ├─ Dashboard / notebooks (Streamlit `epidemic-dashboard`)
+      ├─ Alerting service (`epidemic-alert-service` Deployment)
+      │   ├─ ConfigMap: `epidemic-alert-config`  (env vars)
+      │   ├─ ConfigMap: `epidemic-alert-rules`   (`thresholds.json`)
+      │   ├─ Secret:    `epidemic-slack-webhook` (`webhook_url`, optional)
+      │   ├─ DB rules:  pipeline freshness + ML outbreak agreement
+      │   ├─ Metric rules (multi-window): `event_count`, `avg_severity` from `raw_typed_events`
+      │   └─ Outputs:   `alert_events` table, structured `[ALERT]` logs, Slack `#epidemic-alerts`
       └─ ML scoring / outbreak prediction
+
+The alerting service is the rubric Category A feature. See
+`docs/alerting-guide.md` for rule semantics and `docs/alert-config.md`
+for the operational runbook (Slack secrets, threshold tuning, smoke
+modes, failure recovery).

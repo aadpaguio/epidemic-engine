@@ -1,123 +1,232 @@
 # Phase 3 alerting service
 
-Lightweight **dashboard + log–based** notifications: one Python Deployment polls TimescaleDB, evaluates freshness and outbreak rules, **upserts** rows into `alert_events`, and prints structured **`[ALERT]`** JSON lines to stdout. No Slack or outbound webhooks are required for Phase 3.
+`epidemic-alert-service` is a Python deployment that polls TimescaleDB,
+evaluates pipeline freshness and rubric-driven metric rules, persists each
+alert into `alert_events`, prints structured `[ALERT]` JSON to stdout, and
+posts to Slack. The Streamlit Alerts page reads the same `alert_events`
+rows so dashboard, logs, and Slack stay in sync.
 
 ## Architecture
 
 ```text
-TimescaleDB (ml_outbreak_predictions, vw_region_hourly_ml_features_windowed)
-        │
-        ▼
-  epidemic-alert-service (Deployment)
-        │
-        ├──► INSERT/UPSERT alert_events  ──► Streamlit “Alerts” page
-        └──► stdout: [ALERT] { ... json ... }   ──► oc logs / runbook evidence
+raw_typed_events  ─┐
+ml_outbreak_predictions ─┼─► epidemic-alert-service (Deployment)
+vw_region_hourly_ml_features_windowed ─┘            │
+                                                    ├──► UPSERT alert_events  ──► Streamlit "Alerts" page
+                                                    ├──► stdout: [ALERT] {...} ──► oc logs / runbook evidence
+                                                    └──► Slack incoming webhook ──► #epidemic-alerts
 ```
+
+The service runs `run_cycle()` every `ALERT_POLL_SECONDS`. Each cycle it:
+
+1. Ensures the `alert_events` table exists.
+2. Checks ML pipeline freshness (predictions, feature view).
+3. Checks ML outbreak agreement (composite + optional single-detector).
+4. Evaluates ConfigMap-driven metric rules (event volume, avg severity).
+5. Resolves any previously active alert key whose condition has cleared.
+
+## Categories of alerts
+
+| Alert family | Source | Severity ladder | Notes |
+|--------------|--------|-----------------|-------|
+| Pipeline freshness (`prediction_freshness`, `feature_freshness`) | `ml_outbreak_predictions`, `vw_region_hourly_ml_features_windowed` | critical / warning | Empty or stale ML output. |
+| ML outbreak (`outbreak_risk`) | `ml_outbreak_predictions` | critical (3+ models), warning (2 models), info (single, opt-in) | One row per `(region, bucket_start)`. |
+| Event volume (`event_count`) | `raw_typed_events` over 5m / 1h / 1d windows | rule-defined | Multi-window consistency required. |
+| Avg severity (`avg_severity`) | `raw_typed_events` payload severities (mild=1..critical=4) | rule-defined | Multi-window consistency required. |
 
 ## `alert_events` schema
 
 | Column | Type | Notes |
-|--------|------|--------|
-| `alert_key` | TEXT PK | Stable key for dedupe, e.g. `pipeline:stale_predictions`, `outbreak:Region:ISO8601:composite` |
-| `created_at` | TIMESTAMPTZ | First insert |
-| `updated_at` | TIMESTAMPTZ | Last upsert / refresh |
-| `alert_type` | TEXT | `prediction_freshness`, `feature_freshness`, `outbreak_risk`, … |
-| `severity` | TEXT | `critical`, `warning`, `info` |
-| `region` | TEXT | Nullable |
-| `bucket_start` | TIMESTAMPTZ | Nullable |
-| `model_versions` | TEXT[] | Nullable |
-| `max_risk_score` | DOUBLE PRECISION | Nullable |
-| `run_id` | TEXT | Nullable |
-| `status` | TEXT | Default `active` (reserved for acknowledge flows) |
-| `message` | TEXT | Human-readable summary |
-| `raw_payload` | JSONB | Full structured payload mirrored from logs |
+|--------|------|-------|
+| `alert_key` | TEXT PK | Stable dedup key (`pipeline:stale_predictions`, `metric:high_event_volume`, `outbreak:Region:ISO8601:composite`, etc.). |
+| `created_at` | TIMESTAMPTZ | First active emission. Reset to `now()` if an alert resolves and re-fires. |
+| `updated_at` | TIMESTAMPTZ | Last upsert. Used by cooldown gating. |
+| `alert_type` | TEXT | `prediction_freshness`, `feature_freshness`, `outbreak_risk`, `event_count`, `avg_severity`, … |
+| `severity` | TEXT | `critical`, `warning`, `info`. |
+| `region` | TEXT | Optional; set on regional outbreak alerts. |
+| `bucket_start` | TIMESTAMPTZ | Optional; set when the alert ties to a Spark hour. |
+| `model_versions` | TEXT[] | Optional; set on outbreak alerts. |
+| `max_risk_score` | DOUBLE PRECISION | Optional; set on outbreak alerts. |
+| `run_id` | TEXT | Optional; ML run id. |
+| `status` | TEXT | `active` or `resolved` (used by Streamlit filters and resolution logic). |
+| `message` | TEXT | Human-readable summary. |
+| `raw_payload` | JSONB | Full structured payload mirrored to logs and Slack, including window measurements and escalation markers. |
 
-DDL lives in `infra/database-init.sql`, `infra/database-deployment.yaml` (bootstrap SQL), and `ml/ml_schema.sql`. On startup the service also runs `CREATE TABLE IF NOT EXISTS` so an older DB without a redeploy can still create the table.
+DDL ships in `infra/database-init.sql`, `infra/database-deployment.yaml`,
+and `ml/ml_schema.sql`. The service also re-runs `CREATE TABLE IF NOT
+EXISTS` on startup as a safety net.
 
-## Alert rules
+## Multi-window consistency
 
-1. **Prediction freshness** — `MAX(prediction_timestamp)` on `ml_outbreak_predictions`. Alerts if older than `PREDICTION_STALE_MINUTES` (default `180`). Empty table → `pipeline:no_predictions`.
-2. **Feature freshness** — `MAX(bucket_start)` on `vw_region_hourly_ml_features_windowed`. Alerts if older than `FEATURE_STALE_HOURS` (default `12`).
-3. **Composite outbreak** — Within `OUTBREAK_LOOKBACK_HOURS`, latest row per `(bucket_start, region, model_version)` where `predicted_label = 'high_risk'` and `model_version` is one of `moving_avg_k6_v1`, `ewma_v1`, `kalman_v1`, `v1`. If **≥ `MIN_CONFIRMING_MODELS`** distinct models (default `2`) agree on the same `(bucket_start, region)`, emit **warning** (2 models) or **critical** (3+ models).
-4. **Single-detector outbreak (optional)** — If `OUTBREAK_ALERT_SINGLE_MODEL=1`, same window but only `moving_avg_k6_v1` and `ewma_v1`, **exactly one** model flags `high_risk` → **info** severity (less noisy; off by default).
+Metric rules from `thresholds.json` evaluate **5m / 1h / 1d** windows in a
+single cycle and only fire when the rule's `min_windows_breaching` is
+satisfied. The full window set (value + threshold + breach flag) is
+written into `raw_payload.measurements` and rendered in Slack messages so
+operators can see, at a glance, whether the spike is short-lived noise or
+a sustained event.
 
-## Deduplication / cooldown
+```json
+{
+  "high_event_volume": {
+    "metric": "event_count",
+    "windows": [
+      {"name": "5m", "minutes": 5,    "threshold": 50},
+      {"name": "1h", "minutes": 60,   "threshold": 1000},
+      {"name": "1d", "minutes": 1440, "threshold": 20000}
+    ],
+    "severity": "warning",
+    "min_windows_breaching": 2,
+    "cooldown_seconds": 1800
+  }
+}
+```
 
-- **DB:** one row per `alert_key`; `ON CONFLICT DO UPDATE` refreshes content.
-- **Cooldown:** before emitting another `[ALERT]` log line and touching the row, the service checks `updated_at` in `alert_events`. If the last update was within `ALERT_COOLDOWN_SECONDS`, the alert is **suppressed** for that cycle (no log spam, no upsert bump).
+Edit the ConfigMap to retune thresholds; no code change or redeploy is
+required.
 
-In-memory state is optional; DB-backed keys survive pod restarts without duplicate dashboard rows every restart.
+## Suppression / dedupe / escalation
 
-When the underlying condition clears (predictions fresh again, feature buckets current, outbreak rows no longer match the composite/single queries), the service sets **`status` to `resolved`** for the affected `alert_key` rows so the Streamlit table does not show stale “active” pipeline or outbreak alerts indefinitely.
+- **DB dedupe:** one row per `alert_key`, `ON CONFLICT DO UPDATE`.
+- **Cooldown:** `cooldown_allows()` uses `updated_at` to suppress repeat
+  log + Slack notifications until `ALERT_COOLDOWN_SECONDS` (or the rule's
+  `cooldown_seconds`) elapses. Suppressed cycles also skip the upsert so
+  cooldown timing keeps moving forward.
+- **Escalation:** when an alert has stayed active for at least
+  `ESCALATE_AFTER_SECONDS`, every subsequent notification is tagged
+  `escalated: true` in the payload, gets an `:arrow_double_up: ESCALATED`
+  marker in Slack, and (for `critical`) renders the configured
+  `SLACK_CRITICAL_MENTION` so a human is paged.
+- **Resolution:** when the underlying condition clears the service flips
+  the row to `status='resolved'` so Streamlit and downstream consumers do
+  not see ghost alerts. A re-fire after resolution resets `created_at`,
+  so escalation timing reflects the current incident only.
+
+## Slack delivery
+
+The notifier uses an **incoming webhook** posted via `urllib.request`, so
+the alert image stays minimal. Severity controls who is paged:
+
+- `critical` — sent to Slack with `SLACK_CRITICAL_MENTION` (default
+  `<!channel>`).
+- `warning` — sent to Slack without mention.
+- `info` — only sent if `SLACK_NOTIFY_SEVERITIES` includes `info`.
+
+Failures (timeouts, non-2xx responses, DNS issues) are logged and
+swallowed so the alert loop keeps running.
+
+### Configure Slack in OpenShift
+
+```bash
+oc create secret generic epidemic-slack-webhook \
+  --from-literal=webhook_url='https://hooks.slack.com/services/T000/B000/XXXX'
+oc apply -f alert/alert-deployment.yaml
+oc rollout restart deploy/epidemic-alert-service
+```
+
+Set `SLACK_ENABLED=0` in `epidemic-alert-config` to silence Slack while
+keeping DB + log alerts during maintenance.
 
 ## Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | — | **Required.** Same secret pattern as ML (`outbreak-db-url`). Normalizes `postgresql+psycopg2://` and `postgres://` to `postgresql://` for `psycopg2`. |
-| `ALERT_POLL_SECONDS` | `300` | Sleep between poll cycles |
-| `ALERT_COOLDOWN_SECONDS` | `1800` | Min seconds between repeated fires per `alert_key` |
-| `PREDICTION_STALE_MINUTES` | `180` | Stale prediction threshold |
-| `FEATURE_STALE_HOURS` | `12` | Stale ML feature bucket threshold |
-| `OUTBREAK_LOOKBACK_HOURS` | `24` | Window for outbreak queries |
-| `MIN_CONFIRMING_MODELS` | `2` | Composite outbreak detector agreement |
-| `OUTBREAK_ALERT_SINGLE_MODEL` | `0` | Set `1` to enable single-detector info alerts |
+| `DATABASE_URL` | — | **Required.** Same Secret pattern as ML (`outbreak-db-url`). Normalizes `postgresql+psycopg2://` and `postgres://` to `postgresql://`. |
+| `ALERT_POLL_SECONDS` | `300` | Sleep between poll cycles. |
+| `ALERT_COOLDOWN_SECONDS` | `1800` | Default min seconds between repeat notifications per `alert_key`. |
+| `ESCALATE_AFTER_SECONDS` | `7200` | Mark notifications escalated once an alert has been active this long. |
+| `ALERT_RULES_PATH` | `/etc/alerting/thresholds.json` | Mounted ConfigMap; falls back to `alert/thresholds.json` then built-in defaults. |
+| `PREDICTION_STALE_MINUTES` | `180` | Stale prediction threshold. |
+| `FEATURE_STALE_HOURS` | `12` | Stale ML feature bucket threshold. |
+| `OUTBREAK_LOOKBACK_HOURS` | `24` | Window for outbreak queries. |
+| `MIN_CONFIRMING_MODELS` | `2` | Composite outbreak detector agreement. |
+| `OUTBREAK_ALERT_SINGLE_MODEL` | `0` | Set `1` to enable single-detector info alerts. |
+| `SLACK_ENABLED` | derived from `SLACK_WEBHOOK_URL` | `1`/`0` master switch. |
+| `SLACK_WEBHOOK_URL` | — | From Secret `epidemic-slack-webhook`/`webhook_url`. |
+| `SLACK_CHANNEL_NAME` | `#epidemic-alerts` | Display label used in Slack messages. |
+| `SLACK_CRITICAL_MENTION` | `<!channel>` | Mention prefix for critical alerts. |
+| `SLACK_NOTIFY_SEVERITIES` | `critical,warning` | Comma-separated allowlist. |
+| `SLACK_TIMEOUT_SECONDS` | `5` | HTTP timeout for Slack POST. |
 
-ConfigMap reference: `alert/alert-config.yaml` and `alert/alert-deployment.yaml`.
+ConfigMaps: `alert/alert-deployment.yaml` (canonical, includes the
+`epidemic-alert-rules` ConfigMap with `thresholds.json`) and
+`alert/alert-config.yaml` (reference comments). Defaults also live in
+`alert/thresholds.json` for local runs.
 
 ## Sample `[ALERT]` log line
 
 ```text
-[ALERT] {"component": "alert-service", "alert_type": "outbreak_risk", "severity": "warning", "region": "Boston", "bucket_start": "2026-04-30T18:00:00+00:00", "model_versions": ["ewma_v1", "moving_avg_k6_v1"], "n_models": 2, "max_risk_score": 1.0, "run_id": "eventtime-...", "reason": "Multiple detectors flagged high_risk for the same region bucket.", "alert_key": "outbreak:Boston:2026-04-30T18:00:00+00:00:composite"}
+[ALERT] {"component": "alert-service", "alert_type": "event_count", "severity": "warning", "rule_name": "high_event_volume", "metric": "event_count", "measurements": [{"window": "5m", "minutes": 5, "value": 312, "threshold": 50, "breach": true}, {"window": "1h", "minutes": 60, "value": 4120, "threshold": 1000, "breach": true}, {"window": "1d", "minutes": 1440, "value": 12044, "threshold": 20000, "breach": false}], "n_breaches": 2, "min_windows_breaching": 2, "alert_key": "metric:high_event_volume"}
 ```
 
 ## Streamlit
 
-The dashboard **Alerts** page reads `alert_events` via `get_alert_events()` in `app/sql_queries.py`, sorted by `updated_at DESC`, with filters for severity and alert type.
+`app/dashboard.py` ("Alerts" page) reads `alert_events` via
+`get_alert_events()` in `app/sql_queries.py`, sorted by `updated_at DESC`,
+with severity / type / status filters.
 
 ## Build and deploy (OpenShift)
 
-From repository root:
-
 ```bash
-podman build -f alert/Dockerfile -t image-registry.openshift-image-registry.svc:5000/<project>/epidemic-alert-service:latest .
+podman build -f alert/Dockerfile \
+  -t image-registry.openshift-image-registry.svc:5000/<project>/epidemic-alert-service:latest .
 podman push image-registry.openshift-image-registry.svc:5000/<project>/epidemic-alert-service:latest
 oc apply -f alert/alert-deployment.yaml
+oc rollout restart deploy/epidemic-alert-service
 oc logs deploy/epidemic-alert-service -f
 ```
 
-Ensure Secret `outbreak-db-url` with key `database_url` exists (same as `ml/ml-model.yaml`).
+Required Secrets:
+
+- `outbreak-db-url` (`database_url`) — TimescaleDB DSN.
+- `epidemic-slack-webhook` (`webhook_url`) — Slack incoming webhook.
+  Marked `optional: true` in the deployment so the pod still starts
+  before the webhook is provisioned.
+
+## CLI smoke modes
+
+```bash
+# Single cycle then exit (good for cron / Tekton / local dev).
+python -m alert.alert_service --once
+
+# Send a single Slack ping using the configured webhook.
+python -m alert.alert_service --test-slack
+```
 
 ## Local verification
 
 1. Port-forward TimescaleDB if needed (`docs/local-db-connection.md`).
-2. Export `DATABASE_URL` (or use individual `DB_*` vars only for Streamlit; **the alert service requires `DATABASE_URL`**).
-3. One-shot run (exits after manual Ctrl+C is still infinite loop — instead shorten poll):
+2. Copy `.env.example` to `.env`, fill in `DATABASE_URL`, and (optionally)
+   `SLACK_WEBHOOK_URL` / `SLACK_ENABLED=1`.
+3. Run a single cycle:
 
-```bash
-export DATABASE_URL='postgresql://user:pass@localhost:5432/epidemic'
-export ALERT_POLL_SECONDS=3600   # long sleep after first cycle for a quick test
-python -m alert.alert_service
-```
+   ```bash
+   export $(grep -v '^#' .env | xargs)
+   python -m alert.alert_service --once
+   ```
 
-4. Query alerts:
+4. Inspect alerts:
 
-```sql
-SELECT * FROM alert_events ORDER BY updated_at DESC LIMIT 20;
-```
+   ```sql
+   SELECT alert_key, severity, status, updated_at, message
+   FROM alert_events
+   ORDER BY updated_at DESC LIMIT 20;
+   ```
 
-5. If predictions are empty or the ML output window is too narrow, widen `ML_OUTPUT_WINDOW_HOURS` on the predict job or insert test rows into `ml_outbreak_predictions` per `docs/ml-model-guide.md`.
+5. Run unit tests:
+
+   ```bash
+   pytest tests/unit/test_alert_service.py -v
+   ```
 
 ## Troubleshooting
 
 | Symptom | Check |
-|---------|--------|
+|---------|-------|
 | No rows in `alert_events` | DB reachable? `ml_outbreak_predictions` populated? Rules may simply not fire. |
-| Stale prediction alerts | Spark/ML job schedule; compare `MAX(prediction_timestamp)` to `now()`. |
+| Stale prediction alerts | Spark/ML schedule; compare `MAX(prediction_timestamp)` to `now()`. |
 | No composite outbreak alerts | Need ≥2 models with `high_risk` on same `(region, bucket_start)` in lookback window. |
-| Streamlit “No alert rows” | Table missing (allow service to create), or service not deployed. |
+| `metric:*` rules never fire | `raw_typed_events` populated by `scripts/ingest-typed-events-to-db.py` or Spark? Try lowering thresholds via the `epidemic-alert-rules` ConfigMap. |
+| Slack quiet but DB shows alerts | `SLACK_ENABLED=1`? Webhook secret populated? `SLACK_NOTIFY_SEVERITIES` includes the severity? Check pod logs for `slack webhook send failed`. |
+| Pod crashloops on missing Slack | Ensure the secret reference uses `optional: true` (default in `alert/alert-deployment.yaml`). |
+| Streamlit shows "No alert rows" | Table missing — let the service `ensure_tables()` once, or apply infra DDL. |
 | `ModuleNotFoundError: alert` | Run from repo root with `PYTHONPATH=.` or use `python -m alert.alert_service`. |
-
-## Future extensions
-
-Slack, email, or webhooks can subscribe to the same rules or tail `[ALERT]` logs; not required for Phase 3.

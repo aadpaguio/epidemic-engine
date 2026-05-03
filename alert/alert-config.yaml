@@ -1,10 +1,28 @@
-# Reference ConfigMap values for epidemic-alert-service (see alert-deployment.yaml).
-# Apply thresholds with: oc apply -f alert/alert-deployment.yaml
+# Reference ConfigMap values for epidemic-alert-service.
+# Apply the canonical resources with: oc apply -f alert/alert-deployment.yaml
 #
-# ALERT_POLL_SECONDS: "300"
-# ALERT_COOLDOWN_SECONDS: "1800"
-# PREDICTION_STALE_MINUTES: "180"
-# FEATURE_STALE_HOURS: "12"
-# OUTBREAK_LOOKBACK_HOURS: "24"
-# MIN_CONFIRMING_MODELS: "2"
-# OUTBREAK_ALERT_SINGLE_MODEL: "0"
+# epidemic-alert-config (env vars consumed via envFrom):
+#   ALERT_POLL_SECONDS:           "300"
+#   ALERT_COOLDOWN_SECONDS:       "1800"
+#   ESCALATE_AFTER_SECONDS:       "7200"
+#   PREDICTION_STALE_MINUTES:     "180"
+#   FEATURE_STALE_HOURS:          "12"
+#   OUTBREAK_LOOKBACK_HOURS:      "24"
+#   MIN_CONFIRMING_MODELS:        "2"
+#   OUTBREAK_ALERT_SINGLE_MODEL:  "0"
+#   ALERT_RULES_PATH:             "/etc/alerting/thresholds.json"
+#   SLACK_ENABLED:                "1"
+#   SLACK_CHANNEL_NAME:           "#epidemic-alerts"
+#   SLACK_CRITICAL_MENTION:       "<!channel>"
+#   SLACK_NOTIFY_SEVERITIES:      "critical,warning"
+#   SLACK_TIMEOUT_SECONDS:        "5"
+#
+# epidemic-alert-rules (mounted at /etc/alerting/thresholds.json):
+#   See thresholds.json embedded in alert/alert-deployment.yaml or the
+#   in-repo copy at alert/thresholds.json. Edit and re-apply the ConfigMap
+#   to retune thresholds without code changes.
+#
+# Secrets:
+#   outbreak-db-url   key=database_url        DATABASE_URL DSN
+#   epidemic-slack-webhook key=webhook_url   Slack incoming webhook URL
+#     (mark optional so the pod boots before Slack is provisioned)

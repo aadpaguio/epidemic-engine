@@ -5,13 +5,61 @@ metadata:
   labels:
     app: epidemic-alert-service
 data:
+  # Polling and lifecycle
   ALERT_POLL_SECONDS: "300"
   ALERT_COOLDOWN_SECONDS: "1800"
+  ESCALATE_AFTER_SECONDS: "7200"
+
+  # ML / pipeline rules
   PREDICTION_STALE_MINUTES: "180"
   FEATURE_STALE_HOURS: "12"
   OUTBREAK_LOOKBACK_HOURS: "24"
   MIN_CONFIRMING_MODELS: "2"
   OUTBREAK_ALERT_SINGLE_MODEL: "0"
+
+  # Threshold ConfigMap mount path (see epidemic-alert-rules below)
+  ALERT_RULES_PATH: "/etc/alerting/thresholds.json"
+
+  # Slack delivery
+  # Set SLACK_ENABLED=1 once the epidemic-slack-webhook Secret is populated.
+  SLACK_ENABLED: "1"
+  SLACK_CHANNEL_NAME: "#epidemic-alerts"
+  SLACK_CRITICAL_MENTION: "<!channel>"
+  SLACK_NOTIFY_SEVERITIES: "critical,warning"
+  SLACK_TIMEOUT_SECONDS: "5"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: epidemic-alert-rules
+  labels:
+    app: epidemic-alert-service
+data:
+  thresholds.json: |
+    {
+      "high_event_volume": {
+        "metric": "event_count",
+        "windows": [
+          {"name": "5m", "minutes": 5, "threshold": 50},
+          {"name": "1h", "minutes": 60, "threshold": 1000},
+          {"name": "1d", "minutes": 1440, "threshold": 20000}
+        ],
+        "severity": "warning",
+        "min_windows_breaching": 2,
+        "cooldown_seconds": 1800
+      },
+      "high_avg_severity": {
+        "metric": "avg_severity",
+        "windows": [
+          {"name": "5m", "minutes": 5, "threshold": 3.0},
+          {"name": "1h", "minutes": 60, "threshold": 2.8},
+          {"name": "1d", "minutes": 1440, "threshold": 2.5}
+        ],
+        "severity": "critical",
+        "min_windows_breaching": 2,
+        "cooldown_seconds": 1800
+      }
+    }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,6 +90,19 @@ spec:
                 secretKeyRef:
                   name: outbreak-db-url
                   key: database_url
+            # Slack webhook is loaded from a separate Secret so it can be
+            # rotated without redeploying the ConfigMap. Mark the secret
+            # optional so the pod still starts before Slack is provisioned.
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: epidemic-slack-webhook
+                  key: webhook_url
+                  optional: true
+          volumeMounts:
+            - name: alert-rules
+              mountPath: /etc/alerting
+              readOnly: true
           resources:
             requests:
               cpu: "50m"
@@ -49,3 +110,10 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
+      volumes:
+        - name: alert-rules
+          configMap:
+            name: epidemic-alert-rules
+            items:
+              - key: thresholds.json
+                path: thresholds.json
