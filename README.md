@@ -1,125 +1,89 @@
-# Team [02] — Epidemic Engine
+# Epidemic Engine
 
-**DS-551 Data Engineering at Scale — Spring 2026**
+Epidemic Engine is a data pipeline for synthetic disease-surveillance events. It reads raw events from Kafka, validates them, and stores hourly regional statistics in TimescaleDB. A dashboard, an outbreak-risk model, and an alert service read those statistics.
 
----
+The pipeline runs on OpenShift (Kubernetes). We built it as a four-person team project for DS-551 Data Engineering at Scale at Boston University (Spring 2026).
 
-## Project overview
-
-This repository implements a multi-phase, cloud-native pipeline for synthetic epidemiological events:
-
-- **Phase 1 (Tekton)**: validate and route **Kafka** events from a **raw topic** to **typed topics**.
-- **Raw landing (optional but recommended for stable batching)**: persist typed Kafka messages into TimescaleDB **`raw_typed_events`** for deduped, replay-friendly storage (`scripts/ingest-typed-events-to-db.py`).
-- **Phase 2 (Spark ETL)**: compute **hourly fact tables** `feature_*_hourly` in TimescaleDB (`spark/etl.py`).
-- **Layer B (SQL in TimescaleDB)**: `analytic_*` views (and ML feature views) built on hourly facts (`infra/database-init.sql`, `infra/database-deployment.yaml`).
-- **Phase 3 (consumers)**: Streamlit dashboard (`app/`), ML scoring (`ml/`), alerting (`alert/`).
-
-If you want one “how we run it for hours without CronJobs” guide, start with [`docs/runbook.md`](docs/runbook.md).
-
----
-
-## Team members
-
-- [Aidan Smith]
-- [Arnald Paguio]
-- [Evan Ferguson-Hull]
-- [Jason Nguyen]
-
----
-
-## Architecture (quick)
-
-**Consolidated architecture reference:** [`docs/architecture.md`](docs/architecture.md)
-
-**End-to-end Phase 3 flow (short):** [`docs/phase3-dataflow.md`](docs/phase3-dataflow.md)
-
-**Change order CO-2026-01 (vaccinations):** [`docs/change-order-vaccination.md`](docs/change-order-vaccination.md)
-
-At a glance:
+## How it works
 
 ```text
-Kafka raw -> Tekton validate -> Kafka validated -> Tekton route -> Kafka typed topics
-  -> (ingester) raw_typed_events -> Spark -> feature_*_hourly -> analytic_* views -> dashboard / ML / alerts
+Kafka raw topic
+  -> Tekton: validate-events      (rejects bad JSON, missing fields, bad timestamps)
+  -> Tekton: route-and-enrich     (splits events into typed topics)
+  -> Kafka typed topics           (symptom reports, clinic visits, hospital admissions, vaccination records)
+  -> Ingester                     (writes each event once to raw_typed_events)
+  -> Spark ETL                    (aggregates events into hourly fact tables)
+  -> TimescaleDB views            (analytics and ML features)
+  -> Streamlit dashboard, ML scoring, alert service
 ```
 
-Spark can read **`raw_typed_events`** (`FEATURE_SOURCE_MODE=raw_db`, preferred when JDBC is enabled) or typed Kafka directly (`FEATURE_SOURCE_MODE=kafka`). See [`spark/README.md`](spark/README.md).
+| Stage | Technology | What it does |
+| --- | --- | --- |
+| Ingestion | Kafka, Tekton | Validates events, sends bad records to a dead-letter topic, and routes good records to one topic per event type. |
+| Raw landing | Python, TimescaleDB | Stores each typed event in `raw_typed_events`. The key is `(topic, partition, offset)`, so a replay does not create duplicates. |
+| Batch ETL | Apache Spark | Reads raw events, groups them by hour, and writes the `feature_*_hourly` tables. |
+| Serving | PostgreSQL views | Expose the latest row for each hour, regional trends, data-quality checks, and ML features. |
+| Dashboard | Streamlit | Shows event volume, regional severity, hospital load, predictions, and alerts. |
+| ML | Python | Trains an outbreak-risk model on windowed regional features and writes scores to `ml_outbreak_predictions`. |
+| Alerts | Python | Compares ML features with thresholds and writes alerts to `alert_events`. |
 
----
+For the full system map, see [`docs/architecture.md`](docs/architecture.md).
 
-## Requirements / coursework pointers
+## Run it
 
-- **Course requirements:** [`INSTRUCTIONS.md`](INSTRUCTIONS.md)
-- **Phase instructions (as applicable):** [`PHASE1-LAB-GETTING-STARTED.md`](PHASE1-LAB-GETTING-STARTED.md), [`PHASE2-INSTRUCTIONS.md`](PHASE2-INSTRUCTIONS.md), [`PHASE3-INSTRUCTIONS.md`](PHASE3-INSTRUCTIONS.md)
+You need access to an OpenShift namespace with Kafka and TimescaleDB.
 
----
+1. Deploy the Phase 1 Tekton pipeline:
 
-## Quick starts
+   ```bash
+   oc apply -f tekton/tasks.yaml -n <namespace>
+   oc apply -f tekton/pipeline.yaml -n <namespace>
+   oc create -f tekton/pipelinerun.yaml -n <namespace>
+   ```
 
-### Phase 1: Tekton pipeline (Kafka → Kafka)
+2. Set up the database, the ingester, and the Spark job. Follow [`docs/runbook.md`](docs/runbook.md). It also shows how to run the pipeline for several hours within namespace quotas.
 
-```bash
-oc apply -f tekton/tasks.yaml -n <your-namespace>
-oc apply -f tekton/pipeline.yaml -n <your-namespace>
-oc create -f tekton/pipelinerun.yaml -n <your-namespace>
-oc get pipelinerun -n <your-namespace>
-```
+3. Start the dashboard on your computer. Follow [`docs/visualization-guide.md`](docs/visualization-guide.md).
 
-Notes: see [`tekton/README.md`](tekton/README.md) and [`docs/tekton-tips.md`](docs/tekton-tips.md).
+4. Run the tests:
 
-### Phase 2/3: database + Spark ETL + raw landing (recommended sequencing)
+   ```bash
+   scripts/run-test-suite.sh
+   ```
 
-This repo’s recommended “stable collection + refresh” mode is documented in [`docs/runbook.md`](docs/runbook.md), including:
-
-- applying DB manifests / DDL (including `raw_typed_events`)
-- running Phase 1 in a quota-safe loop
-- running the ingester and Spark refresh (`FEATURE_SOURCE_MODE=raw_db`)
-
-Spark job manifest: [`infra/spark-job.yaml`](infra/spark-job.yaml)
-
-### Streamlit dashboard (local)
-
-See [`docs/visualization-guide.md`](docs/visualization-guide.md).
-
----
-
-## Repository structure (high level)
+## Repository layout
 
 ```text
-├── app/                 # Streamlit dashboard + SQL queries
-├── alert/               # Phase 3 alert service (Kubernetes manifests + service code)
-├── docs/                # Architecture + runbooks + course docs
-├── infra/               # OpenShift/Kubernetes manifests (DB, Spark job, loadgen, ...)
-├── ml/                  # Training + batch prediction job
-├── scripts/             # Orchestration helpers (Phase1+Spark, raw landing, smoke tests, ...)
-├── spark/               # Phase 2 Spark ETL (`etl.py`) + Spark README
-├── tekton/              # Phase 1 Tekton tasks + pipelines + pipelineruns
-├── tests/               # Unit/integration tests (Spark, ingest, optional DB schema checks)
-├── loadgen/             # Kafka load generator tooling
-└── main.py              # Small repo entrypoint (if used by your environment)
+tekton/    Phase 1 Tekton tasks, pipelines, and pipeline runs
+scripts/   Ingester, orchestration loops, and smoke tests
+spark/     Phase 2 Spark ETL (etl.py)
+infra/     Kubernetes manifests and database schema (database-init.sql)
+app/       Streamlit dashboard and its SQL queries
+ml/        Model training and batch scoring
+alert/     Alert service and its manifests
+loadgen/   Kafka load generator
+tests/     Unit and integration tests
+docs/      Architecture, runbooks, and guides
 ```
 
----
+## Documentation
 
-## Documentation index (common)
+- [Architecture](docs/architecture.md)
+- [Runbook](docs/runbook.md)
+- [Spark ETL and environment variables](spark/README.md)
+- [ML model](docs/ml-model-guide.md)
+- [Alerting](docs/alerting-guide.md) and [alert configuration](docs/alert-config.md)
+- [Data-quality monitoring](docs/data-quality-monitoring.md)
+- [Dashboard](docs/visualization-guide.md)
+- [Testing](docs/testing-suite.md)
+- [Stress test results](docs/phase2-stress-test.md)
+- [Vaccination change order (CO-2026-01)](docs/change-order-vaccination.md)
 
-- **Architecture (consolidated):** [`docs/architecture.md`](docs/architecture.md)
-- **Phase 3 flow (short):** [`docs/phase3-dataflow.md`](docs/phase3-dataflow.md)
-- **Timed continuous collection / raw landing runbook:** [`docs/runbook.md`](docs/runbook.md)
-- **Testing Suite:** [`docs/testing-suite.md`](docs/testing-suite.md) — run everything with [`scripts/run-test-suite.sh`](scripts/run-test-suite.sh)
-- **Spark ETL deploy + env vars:** [`spark/README.md`](spark/README.md)
-- **ML guide:** [`docs/ml-model-guide.md`](docs/ml-model-guide.md)
-- **Alerting guide:** [`docs/alerting-guide.md`](docs/alerting-guide.md)
-- **Alert config / ops runbook:** [`docs/alert-config.md`](docs/alert-config.md)
-- **Visualization / dashboard:** [`docs/visualization-guide.md`](docs/visualization-guide.md)
-- **Kafka tips:** [`docs/kafka-tips.md`](docs/kafka-tips.md)
-- **Spark tips:** [`docs/spark-tips.md`](docs/spark-tips.md)
-- **Tekton tips:** [`docs/tekton-tips.md`](docs/tekton-tips.md)
-- **Phase 2 stress testing writeup:** [`docs/phase2-stress-test.md`](docs/phase2-stress-test.md)
+The course assignment is in [`INSTRUCTIONS.md`](INSTRUCTIONS.md).
 
----
+## Team
 
-## Phase status (high level)
-
-- **Phase 1:** Tekton ingestion pipeline (`tekton/`)
-- **Phase 2:** Spark hourly facts + Timescale Layer A/B DDL (`spark/`, `infra/database-init.sql`, `infra/database-deployment.yaml`)
-- **Phase 3:** Dashboard + ML + alerting (`app/`, `ml/`, `alert/`)
+- Aidan Smith
+- Arnald Paguio
+- Evan Ferguson-Hull
+- Jason Nguyen
